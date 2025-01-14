@@ -6,8 +6,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
 import mysql.connector
+import os
 
-from config import TOKEN, USER_DB, PASS_DB
+TOKEN = os.environ['TOKEN']
+USER_DB = os.environ['USER_DB']
+PASS_DB = os.environ['PASS_DB']
+
+# from config import TOKEN, USER_DB, PASS_DB
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
