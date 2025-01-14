@@ -70,7 +70,7 @@ async def process_new_expense_amount(message: Message, state: FSMContext):
         await message.answer("Выберите категорию", reply_markup=markup)
         await state.set_state(AddExpenseState.waiting_for_category)
     except ValueError:
-        await message.answer("Введите корректное число. Попробуйте снова.")
+        await state.clear()  # Завершаем состояние
 
 
 @dp.callback_query(AddExpenseState.waiting_for_category)
@@ -98,7 +98,6 @@ async def process_new_expense_category(callback: CallbackQuery, state: FSMContex
 
 @dp.message(Command("history"))
 async def show_history(message: Message, state: FSMContext):
-    await state.clear()  # Сбрасываем текущее состояние пользователя
     today = datetime.now()
     start_date = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d 00:00:00')
     end_date = today.strftime('%Y-%m-%d 23:59:59')
