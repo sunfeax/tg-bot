@@ -9,8 +9,8 @@ import mysql.connector
 import os
 
 TOKEN = os.environ['TOKEN']
-USER_DB = os.environ['USER_DB']
-PASS_DB = os.environ['PASS_DB']
+USER = os.environ['USER']
+PASS = os.environ['PASS']
 
 # from config import TOKEN, USER_DB, PASS_DB
 
@@ -19,8 +19,8 @@ dp = Dispatcher(storage=MemoryStorage())
 
 db = mysql.connector.connect(
     host="localhost",
-    user=USER_DB,
-    password=PASS_DB,
+    user=USER,
+    password=PASS,
     database="expenses"
 )
 
