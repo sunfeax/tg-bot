@@ -229,19 +229,6 @@ async def calculate_balance(message: Message, state: FSMContext):
 
 @dp.message(Command("delete"))
 async def delete_expense_start(message: Message, state: FSMContext):
-
-    await state.clear()  # Сбрасываем текущее состояние пользователя
-
-    if message.from_user.id not in ALLOWED_USERS:
-        await message.answer("У вас нет доступа к этому боту.")
-        return
-
-    await message.answer("Введите ID записи, которую хотите удалить")
-    await state.set_state(AddExpenseState.waiting_for_id)
-
-
-@dp.message(Command("delete"))
-async def delete_expense_start(message: Message, state: FSMContext):
     await state.clear()  # Сбрасываем текущее состояние пользователя
 
     if message.from_user.id not in ALLOWED_USERS:
@@ -280,6 +267,7 @@ async def process_delete_expense(message: Message, state: FSMContext):
     conn.close()
     await state.clear()  # Завершаем состояние
 
+app = web.Application()
 
 async def on_startup(app):
     webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
@@ -291,8 +279,13 @@ async def on_shutdown(app):
     print("Webhook удалён")
 
 
-app = web.Application()
+async def handle_head(request):
+    return web.Response(status=200)
+
+
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+app.router.add_post('/webhook', dp.message_handler)  # Для Telegram
+app.router.add_head('/webhook', handle_head)  # Для UptimeRobot
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
