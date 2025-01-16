@@ -296,5 +296,5 @@ SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
-if __name__ == "__main__":
-    web.run_app(app, port=int(os.getenv("PORT", 5000)))
+if __name__ == '__main__':
+    web.run_app(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
