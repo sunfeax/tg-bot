@@ -6,15 +6,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
 from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 # from config import TOKEN
 import sqlite3
 import os
-
-webhook_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")  # Домен, который Render предоставляет вашему приложению
-port = os.getenv("PORT", "5000")  # Порт для работы приложения (по умолчанию 5000)
-
-if not webhook_hostname or not port:
-    raise ValueError("Переменные окружения RENDER_EXTERNAL_HOSTNAME или PORT не установлены!")
 
 TOKEN = os.environ['TOKEN']
 
@@ -287,10 +282,9 @@ async def process_delete_expense(message: Message, state: FSMContext):
 
 
 async def on_startup(app):
-    webhook_url = f"https://{webhook_hostname}/webhook"
+    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
     await bot.set_webhook(webhook_url)
     print(f"Webhook установлен: {webhook_url}")
-
 
 async def on_shutdown(app):
     await bot.delete_webhook()
@@ -298,9 +292,9 @@ async def on_shutdown(app):
 
 
 app = web.Application()
-app.router.add_post("/webhook", dp)  # Все запросы от Telegram будут обрабатываться здесь
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    web.run_app(app, port)
+    web.run_app(app, port=int(os.getenv("PORT", 5000)))
