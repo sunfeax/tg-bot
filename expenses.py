@@ -3,15 +3,13 @@ import sqlite3
 conn = sqlite3.connect('expenses.db')  # Файл базы данных
 cursor = conn.cursor()
 
-# # Удалить запись
 # cursor.execute('''
-#     DELETE FROM expenses WHERE id=;
+#     UPDATE expenses
+#     SET date = DATE(date);
 # ''')
 
 # Вывести данные
-cursor.execute('''
-    SELECT * FROM expenses;
-''')
+cursor.execute("SELECT * FROM expenses;")
 
 # Получение всех результатов
 rows = cursor.fetchall()
