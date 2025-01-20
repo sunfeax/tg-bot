@@ -274,4 +274,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    dp.run_polling(bot)
+    dp.run_polling(bot, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
