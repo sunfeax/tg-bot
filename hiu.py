@@ -87,6 +87,9 @@ async def process_new_expense_category(callback: CallbackQuery, state: FSMContex
     conn.commit()
     conn.close()
 
+    db_path = os.path.abspath('expenses.db')
+    print(f"Файл базы данных: {db_path}")
+
     await callback.message.answer(f"Запись успешно добавлена!")
     await state.clear()  # Завершаем состояние
 
@@ -119,8 +122,8 @@ async def process_time_history(callback: CallbackQuery):
     today = datetime.now()
 
     if callback.data == "time_history_week":
-        start_date = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d 00:00:00')
-        end_date = today.strftime('%Y-%m-%d 23:59:59')
+        start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')  # 7 дней назад
+        end_date = today.strftime('%Y-%m-%d')
         query = '''
             SELECT id, username, amount, category, date 
             FROM expenses 
@@ -130,8 +133,8 @@ async def process_time_history(callback: CallbackQuery):
         params = (start_date, end_date)
 
     elif callback.data == "time_history_month":
-        start_date = today.replace(day=1).strftime('%Y-%m-%d 00:00:00')
-        end_date = today.strftime('%Y-%m-%d 23:59:59')
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
         query = '''
             SELECT id, username, amount, category, date 
             FROM expenses 
