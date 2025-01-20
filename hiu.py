@@ -63,7 +63,7 @@ async def process_new_expense_amount(message: Message, state: FSMContext):
         await message.answer("Выберите категорию", reply_markup=markup)
         await state.set_state(AddExpenseState.waiting_for_category)
     except ValueError:
-        await message.answer("Произошла ошибка, повторите команду.")
+        await message.answer("Произошла ошибка, повторите команду")
         await state.clear()  # Завершаем состояние
 
 
@@ -108,7 +108,7 @@ async def show_history(message: Message, state: FSMContext):
                 InlineKeyboardButton(text="Месяц", callback_data="time_history_month"),
                 InlineKeyboardButton(text="Все время", callback_data="time_history_all"),
             ]])
-        await message.answer("Выберите период для просмотра истории:", reply_markup=markup)
+        await message.answer("Выберите период для просмотра истории", reply_markup=markup)
     except ValueError:
         await message.answer("Произошла ошибка, повторите команду.")
         await state.clear()  # Завершаем состояние
@@ -235,7 +235,7 @@ async def delete_expense_start(message: Message, state: FSMContext):
         await message.answer("У вас нет доступа к этому боту.")
         return
 
-    await message.answer("Введите ID записи, которую хотите удалить:")
+    await message.answer("Введите ID записи, которую хотите удалить")
     await state.set_state(AddExpenseState.waiting_for_id)
 
 
@@ -284,8 +284,6 @@ async def handle_head(request):
 
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-app.router.add_post('/webhook', dp.message_handler)  # Для Telegram
-app.router.add_head('/webhook', handle_head)  # Для UptimeRobot
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
