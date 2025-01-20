@@ -5,16 +5,11 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
-from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-# from config import TOKEN
 import sqlite3
 import os
 
 TOKEN = os.environ['TOKEN']
-
-db_path = os.path.abspath('expenses.db')
-print(f"Файл базы данных: {db_path}")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -270,25 +265,10 @@ async def process_delete_expense(message: Message, state: FSMContext):
     conn.close()
     await state.clear()  # Завершаем состояние
 
-app = web.Application()
-
-async def on_startup(app):
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
-    await bot.set_webhook(webhook_url)
-    print(f"Webhook установлен: {webhook_url}")
-
-async def on_shutdown(app):
-    await bot.delete_webhook()
-    print("Webhook удалён")
-
 
 async def handle_head(request):
     return web.Response(status=200)
 
 
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
-
-if __name__ == '__main__':
-    web.run_app(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+if __name__ == "__main__":
+    dp.run_polling(bot)
