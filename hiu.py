@@ -13,6 +13,9 @@ import os
 
 TOKEN = os.environ['TOKEN']
 
+db_path = os.path.abspath('expenses.db')
+print(f"Файл базы данных: {db_path}")
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
@@ -86,9 +89,6 @@ async def process_new_expense_category(callback: CallbackQuery, state: FSMContex
 
     conn.commit()
     conn.close()
-
-    db_path = os.path.abspath('expenses.db')
-    print(f"Файл базы данных: {db_path}")
 
     await callback.message.answer(f"Запись успешно добавлена!")
     await state.clear()  # Завершаем состояние
