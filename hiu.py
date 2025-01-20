@@ -14,7 +14,7 @@ TOKEN = os.environ['TOKEN']
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-bot.remove_webhook()
+bot.delete_webhook()
 webhook_info = bot.get_webhook_info()
 print(webhook_info)
 
