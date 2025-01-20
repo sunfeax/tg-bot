@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+# from config import TOKEN
 import sqlite3
 import os
 
@@ -13,6 +13,9 @@ TOKEN = os.environ['TOKEN']
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+
+conn = sqlite3.connect('expenses.db')
+cursor = conn.cursor()
 
 class AddExpenseState(StatesGroup):
     waiting_for_amount = State()
@@ -266,8 +269,8 @@ async def process_delete_expense(message: Message, state: FSMContext):
     await state.clear()  # Завершаем состояние
 
 
-async def handle_head(request):
-    return web.Response(status=200)
+async def main():
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
