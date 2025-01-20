@@ -1,22 +1,20 @@
 import sqlite3
+import os
 
-conn = sqlite3.connect('expenses.db')  # Файл базы данных
+# Полный путь к базе данных
+db_path = os.path.abspath('expenses.db')
+print(f"Путь к базе данных: {db_path}")
+
+# Подключение к базе данных
+conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
-# cursor.execute('''
-#     UPDATE expenses
-#     SET date = DATE(date);
-# ''')
-
-# Вывести данные
-cursor.execute("SELECT * FROM expenses;")
-
-# Получение всех результатов
+# Проверка данных
+cursor.execute("SELECT * FROM expenses")
 rows = cursor.fetchall()
 
-# Вывод данных в терминал
+# Вывод данных
 for row in rows:
     print(row)
 
-conn.commit()
 conn.close()
