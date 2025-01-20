@@ -14,6 +14,10 @@ TOKEN = os.environ['TOKEN']
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+bot.remove_webhook()
+webhook_info = bot.get_webhook_info()
+print(webhook_info)
+
 conn = sqlite3.connect('expenses.db')
 cursor = conn.cursor()
 
