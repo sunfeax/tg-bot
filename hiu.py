@@ -298,13 +298,14 @@ async def handle_root(request):
 
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-@app.middleware
-async def handle_head_request(request, handler):
+@web.middleware
+async def handle_head_requests_middleware(request, handler):
     if request.method == 'HEAD' and request.path == '/webhook':
-        logger.info(f"Получен HEAD-запрос {request.path}")
+        # Возвращаем успешный ответ на HEAD-запросы
         return web.Response(status=200, text="OK")
     return await handler(request)
 
+app.middlewares.append(handle_head_requests_middleware)
 app.router.add_route('GET', '/', handle_root)
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
