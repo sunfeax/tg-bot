@@ -4,8 +4,10 @@ from aiogram.filters.command import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiohttp import ClientSession
 from datetime import datetime, timedelta
 # from config import TOKEN
+import asyncio
 import sqlite3
 import os
 
@@ -13,13 +15,6 @@ TOKEN = os.environ['TOKEN']
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-
-bot.delete_webhook()
-webhook_info = bot.get_webhook_info()
-print(webhook_info)
-
-conn = sqlite3.connect('expenses.db')
-cursor = conn.cursor()
 
 class AddExpenseState(StatesGroup):
     waiting_for_amount = State()
@@ -273,9 +268,25 @@ async def process_delete_expense(message: Message, state: FSMContext):
     await state.clear()  # Завершаем состояние
 
 
+async def keep_alive_ping():
+    url = "https://sheetavod.onrender.com/ping"
+    async with ClientSession() as session:
+        while True:
+            try:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        print("Пинг успешен.")
+                    else:
+                        print(f"Пинг неудачен. Статус: {response.status}")
+            except Exception as e:
+                print(f"Ошибка при отправке пинга: {e}")
+            await asyncio.sleep(300)  # Интервал (5 минут)
+
+
 async def main():
+    asyncio.create_task(keep_alive_ping())
     await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-    dp.run_polling(bot, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    asyncio.run(main())
