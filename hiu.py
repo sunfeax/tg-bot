@@ -283,9 +283,6 @@ async def on_shutdown(app):
     await bot.delete_webhook()
 
 
-# Маршрут пинга
-@app.router.add_get("/ping", lambda request: web.Response(text="OK"))
-
 async def log_requests(request, handler):
     logger.info(f"Получен запрос: {request.method} {request.path}")
     response = await handler(request)
