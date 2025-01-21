@@ -1,4 +1,4 @@
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters.command import Command
 from aiogram.fsm.state import State, StatesGroup
@@ -24,6 +24,11 @@ class AddExpenseState(StatesGroup):
     waiting_for_amount = State()
     waiting_for_category = State()
     waiting_for_id = State()
+
+@dp.post('/webhook')  # Обработчик для вебхука
+async def webhook(request: types.Request):
+    # Возвращаем ответ "ОК" для UptimeRobot
+    return "ОК", 200
 
 ALLOWED_USERS = {660558578, 432192596}
 
