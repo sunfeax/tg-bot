@@ -4,19 +4,22 @@ from aiogram.filters.command import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiohttp import ClientSession
 from datetime import datetime, timedelta
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 # from config import TOKEN
-import asyncio
 import sqlite3
+import asyncio 
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.environ['TOKEN']
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+app = web.Application()
 
 class AddExpenseState(StatesGroup):
     waiting_for_amount = State()
@@ -270,40 +273,32 @@ async def process_delete_expense(message: Message, state: FSMContext):
     await state.clear()  # Завершаем состояние
 
 
-async def keep_alive_ping():
-    url = "https://sheetavod.onrender.com/ping"
-    async with ClientSession() as session:
-        while True:
-            try:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        print("Пинг успешен.")
-                    else:
-                        print(f"Пинг неудачен. Статус: {response.status}")
-            except Exception as e:
-                print(f"Ошибка при отправке пинга: {e}")
-            await asyncio.sleep(300)  # Интервал (5 минут)
-
-app = web.Application()
-
 async def on_startup(app):
     webhook_url = f"{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
-    await bot.set_webhook(webhook_url)
-    print(f"Webhook установлен: {webhook_url}")
+    print(f"Попытка установить вебхук: {webhook_url}", flush=True)
+    if not await bot.get_webhook_info().url:
+        await bot.set_webhook(webhook_url)
+        print(f"Webhook установлен: {webhook_url}")
 
 
 async def on_shutdown(app):
     await bot.delete_webhook()
-    print("Webhook удалён")
+    print("Webhook удалён", flush=True)
 
 
 async def main():
-    asyncio.create_task(keep_alive_ping())
-    await dp.start_polling(bot)
+    try:
+        web.run_app(app, port=int(os.getenv("PORT", 5000)))
+    except Exception as e:
+        logging.error(f"Ошибка: {e}")
 
+
+app.router.add_get("/ping", lambda request: web.Response(text="OK"))
+app.router.add_post("/webhook", dp)
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
+
 if __name__ == "__main__":
-    web.run_app(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    asyncio.run(main())
