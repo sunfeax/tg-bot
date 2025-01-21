@@ -6,12 +6,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
 from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 import sqlite3
 import os
 import logging
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 TOKEN = os.environ['TOKEN']
@@ -291,22 +290,18 @@ async def log_requests(request, handler):
     logger.info(f"Ответ: {response.status}")
     return response
 
-
 async def handle_root(request):
-    logger.info(f'KOc> {request.method} {request.path}')
+    logger.info(f'ROOT> {request.method} {request.path}')
     return web.Response(status=200, text="КОК")
 
+async def handle_head(request):
+    logger.info(f'HEAD> {request.method} {request.path}')
+    return web.Response(status=200, text="OK")
 
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-@web.middleware
-async def handle_head_requests_middleware(request, handler):
-    if request.method == 'HEAD' and request.path == '/webhook':
-        # Возвращаем успешный ответ на HEAD-запросы
-        return web.Response(status=200, text="OK")
-    return await handler(request)
 
-app.middlewares.append(handle_head_requests_middleware)
 app.router.add_route('GET', '/', handle_root)
+app.router.add_route('HEAD', '/', handle_head)
+app.router.add_route('POST', '/webhook', log_requests)
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
