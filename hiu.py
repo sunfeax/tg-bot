@@ -6,6 +6,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import ClientSession
 from datetime import datetime, timedelta
+from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 # from config import TOKEN
 import asyncio
 import sqlite3
@@ -282,11 +284,26 @@ async def keep_alive_ping():
                 print(f"Ошибка при отправке пинга: {e}")
             await asyncio.sleep(300)  # Интервал (5 минут)
 
+app = web.Application()
+
+async def on_startup(app):
+    webhook_url = f"{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
+    await bot.set_webhook(webhook_url)
+    print(f"Webhook установлен: {webhook_url}")
+
+
+async def on_shutdown(app):
+    await bot.delete_webhook()
+    print("Webhook удалён")
+
 
 async def main():
     asyncio.create_task(keep_alive_ping())
     await dp.start_polling(bot)
 
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
