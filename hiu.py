@@ -285,9 +285,6 @@ async def on_shutdown(app):
 
 # Маршрут пинга
 @app.router.add_get("/ping", lambda request: web.Response(text="OK"))
-# Маршрут вебхука
-@app.router.add_post("/webhook", dp)
-
 
 async def log_requests(request, handler):
     logger.info(f"Получен запрос: {request.method} {request.path}")
