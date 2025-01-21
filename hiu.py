@@ -7,15 +7,14 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-from config import TOKEN
 import sqlite3
-import asyncio 
 import os
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
-# TOKEN = os.environ['TOKEN']
+TOKEN = os.environ['TOKEN']
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -274,23 +273,27 @@ async def process_delete_expense(message: Message, state: FSMContext):
 
 
 async def on_startup(app):
-    webhook_url = f"{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/webhook"
-    print(f"Попытка установить вебхук: {webhook_url}", flush=True)
-    if not await bot.get_webhook_info().url:
-        await bot.set_webhook(webhook_url)
-        print(f"Webhook установлен: {webhook_url}")
+    webhook_url = f"https://sheetavod.onrender.com/webhook"
+    logger.info(f"Установка вебхука: {webhook_url}")
+    await bot.set_webhook(webhook_url)
 
 
 async def on_shutdown(app):
+    logger.info("Удаление вебхука")
     await bot.delete_webhook()
-    print("Webhook удалён", flush=True)
 
 
-async def main():
-    try:
-        web.run_app(app, port=int(os.getenv("PORT", 5000)))
-    except Exception as e:
-        logging.error(f"Ошибка: {e}")
+# Маршрут пинга
+@app.router.add_get("/ping", lambda request: web.Response(text="OK"))
+# Маршрут вебхука
+@app.router.add_post("/webhook", dp)
+
+
+async def log_requests(request, handler):
+    logger.info(f"Получен запрос: {request.method} {request.path}")
+    response = await handler(request)
+    logger.info(f"Ответ: {response.status}")
+    return response
 
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
@@ -299,4 +302,7 @@ app.on_shutdown.append(on_shutdown)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        web.run_app(app, port=int(os.getenv("PORT", 5000)))
+    except Exception as e:
+        logging.error(f"Ошибка: {e}")
