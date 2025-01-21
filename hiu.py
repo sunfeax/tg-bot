@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
 from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 import sqlite3
 import os
 import logging
@@ -297,6 +298,8 @@ async def handle_root(request):
 async def handle_head(request):
     logger.info(f'HEAD> {request.method} {request.path}')
     return web.Response(status=200, text="OK")
+
+SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 
 
 app.router.add_route('GET', '/', handle_root)
