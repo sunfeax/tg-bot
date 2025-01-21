@@ -290,7 +290,12 @@ async def log_requests(request, handler):
     return response
 
 
+async def handle_head(request):
+    return web.Response(status=200, text="OK")
+
+
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+app.router.add_route('HEAD', f'/webhook', handle_head)
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
 
