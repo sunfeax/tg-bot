@@ -301,9 +301,8 @@ async def handle_head(request):
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 
-
 app.router.add_route('GET', '/', handle_root)
-app.router.add_route('HEAD', '/', handle_head)
+app.router.add_route('HEAD', '/webhook', handle_head) # перенос на webhook and on uptime
 app.router.add_route('POST', '/webhook', log_requests)
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)

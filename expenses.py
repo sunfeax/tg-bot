@@ -3,13 +3,11 @@ import sqlite3
 conn = sqlite3.connect('expenses.db')  # Файл базы данных
 cursor = conn.cursor()
 
-# Вывести данные
 cursor.execute("SELECT * FROM expenses;")
 
-# Получение всех результатов
-rows = cursor.fetchall()
+cursor.execute("SELECT * FROM expenses;")
 
-# Вывод данных в терминал
+rows = cursor.fetchall()
 for row in rows:
     print(row)
 
