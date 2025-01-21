@@ -7,7 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-# from config import TOKEN
+from config import TOKEN
 import sqlite3
 import asyncio 
 import os
@@ -15,7 +15,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-TOKEN = os.environ['TOKEN']
+# TOKEN = os.environ['TOKEN']
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -293,8 +293,6 @@ async def main():
         logging.error(f"Ошибка: {e}")
 
 
-app.router.add_get("/ping", lambda request: web.Response(text="OK"))
-app.router.add_post("/webhook", dp)
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
