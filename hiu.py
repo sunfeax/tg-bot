@@ -29,7 +29,7 @@ ALLOWED_USERS = {660558578, 432192596}
 
 @dp.message(Command("new"))
 async def start_new_expense(message: Message, state: FSMContext):
-
+    logger.info(f"Получена команда /new от {message.from_user.id}")
     await state.clear()  # Сбрасываем текущее состояние пользователя
 
     if message.from_user.id not in ALLOWED_USERS:
@@ -97,7 +97,7 @@ async def process_new_expense_category(callback: CallbackQuery, state: FSMContex
 
 @dp.message(Command("history"))
 async def show_history(message: Message, state: FSMContext):
-
+    logger.info(f"Получена команда /history от {message.from_user.id}")
     await state.clear()  # Сбрасываем текущее состояние пользователя
 
     if message.from_user.id not in ALLOWED_USERS:
@@ -175,7 +175,7 @@ async def process_time_history(callback: CallbackQuery):
 
 @dp.message(Command("balance"))
 async def calculate_balance(message: Message, state: FSMContext):
-
+    logger.info(f"Получена команда /balance от {message.from_user.id}")
     await state.clear()  # Сбрасываем текущее состояние пользователя
 
     if message.from_user.id not in ALLOWED_USERS:
@@ -233,6 +233,7 @@ async def calculate_balance(message: Message, state: FSMContext):
 
 @dp.message(Command("delete"))
 async def delete_expense_start(message: Message, state: FSMContext):
+    logger.info(f"Получена команда /delete от {message.from_user.id}")
     await state.clear()  # Сбрасываем текущее состояние пользователя
 
     if message.from_user.id not in ALLOWED_USERS:
@@ -275,7 +276,8 @@ async def process_delete_expense(message: Message, state: FSMContext):
 async def on_startup(app):
     webhook_url = f"https://sheetavod.onrender.com/webhook"
     logger.info(f"Установка вебхука: {webhook_url}")
-    await bot.set_webhook(webhook_url)
+    response = await bot.set_webhook(webhook_url)
+    logger.info(f"Результат установки вебхука: {response}")
 
 
 async def on_shutdown(app):
@@ -290,16 +292,19 @@ async def log_requests(request, handler):
     return response
 
 
-async def handle_head(request):
-    logger.info(f'KEK> {request.method} {request.path}')
-    return web.Response(status=200, text="kЕK")
 async def handle_root(request):
     logger.info(f'KOc> {request.method} {request.path}')
     return web.Response(status=200, text="КОК")
 
 
 SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-app.router.add_route('HEAD', f'/webhook', handle_head)
+@app.middleware
+async def handle_head_request(request, handler):
+    if request.method == 'HEAD' and request.path == '/webhook':
+        logger.info(f"Получен HEAD-запрос {request.path}")
+        return web.Response(status=200, text="OK")
+    return await handler(request)
+
 app.router.add_route('GET', '/', handle_root)
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
