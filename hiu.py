@@ -1,315 +1,166 @@
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters.command import Command
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.memory import MemoryStorage
-from datetime import datetime, timedelta
-from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
-import sqlite3
-import os
 import logging
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level = logging.INFO,
+    format = "%(asctime)s - %(levelname)s - %(message)s",
+    handlers = [  logging.FileHandler("bot.log", encoding="utf-8"),
+                logging.StreamHandler()])
 
-TOKEN = os.environ['TOKEN']
+logging.info("Бот запущен.")
+
+from aiogram import Bot, Dispatcher
+from aiogram.types import Message
+from aiogram.fsm.storage.memory import MemoryStorage
+from datetime import datetime
+import sqlite3
+import asyncio
+from config import TOKEN
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-app = web.Application()
-
-class AddExpenseState(StatesGroup):
-    waiting_for_amount = State()
-    waiting_for_category = State()
-    waiting_for_id = State()
 
 ALLOWED_USERS = {660558578, 432192596}
+session_messages = []
+pending_reports = set()
 
-@dp.message(Command("new"))
-async def start_new_expense(message: Message, state: FSMContext):
-    logger.info(f"Получена команда /new от {message.from_user.id}")
-    await state.clear()  # Сбрасываем текущее состояние пользователя
+sqlite3.register_adapter(datetime, lambda d: d.strftime('%Y-%m-%d'))
+sqlite3.register_converter("timestamp", lambda s: datetime.strptime(s.decode(), '%Y-%m-%d'))
+
+@dp.message()
+async def handle_all_messages(message: Message):
+
+    logging.info(f"Пользователь {user_id} отправил сообщение: {message.text}")
 
     if message.from_user.id not in ALLOWED_USERS:
         await message.answer("У вас нет доступа к этому боту.")
         return
 
-    await message.answer("Введите сумму (используя точку если нужно)")
-    await state.set_state(AddExpenseState.waiting_for_amount)
+    session_messages.append(message)
 
+    user_id = message.from_user.id
+    username = message.from_user.full_name
+    text = message.text.strip()
 
-@dp.message(AddExpenseState.waiting_for_amount)
-async def process_new_expense_amount(message: Message, state: FSMContext):
     try:
-        amount = float(message.text)  # Проверяем, что введено число
-        await state.update_data(amount=amount)  # Сохраняем сумму во временное хранилище
+        parts = text.split()
+        if len(parts) != 2:
+            await message.answer("Неверный формат. Используйте: 'сумма категория' или 'ID удалить'.")
+            logging.warning(f"Неправильный формат сообщения от {user_id}: {message.text}")
+            return
+        
+        logging.info("Попытка подкючения к БД.")
+        conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
+        cursor = conn.cursor()
+        logging.info("Успешное подкючение к БД.")
+        # Добавление записи
+        if parts[1].lower() != "удалить":
+            amount = float(parts[0].replace(",", "."))
+            category = parts[1]
+            date = message.date.strftime('%Y-%m-%d')
+            cursor.execute('''
+                INSERT INTO expenses (user_id, username, amount, category, date)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, username, amount, category, date))
+            conn.commit()
+            conn.close()
+            await message.answer(f"Запись добавлена: {amount} € в категорию {category}!")
+            logging.info(f"Добавлена новая запись в базу данных: {user_id, username, amount, category, date}")
+            await notify_other_user(user_id, amount, category, message)
 
-        # Отправляем кнопки с категориями
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                {"text": "Продукты", "callback_data": "category_Продукты"},
-                {"text": "Онлайн-покупки", "callback_data": "category_Онлайн-покупки"}
-            ],
-            [
-                {"text": "Аптека", "callback_data": "category_Аптека"},
-                {"text": "Заведения", "callback_data": "category_Заведения"}
-            ],
-            [
-                {"text": "Развлечения", "callback_data": "category_Развлечения"},
-                {"text": "Подписки", "callback_data": "category_Подписки"}
-            ],
-            [
-                {"text": "Другое", "callback_data": "category_Другое"}
-            ]])
+        # Удаление записи
+        elif parts[1].lower() == "удалить":
+            id = int(parts[0])
+            cursor.execute("DELETE FROM expenses WHERE id = ?;", (id,))
+            conn.commit()
+            conn.close()
+            await message.answer(f"Запись с ID {id} была удалена.")
+            logging.info(f"Удаление записи пользователем {username} с id={id}, евро={amount}, пометка={category}, дата={date}.")
 
-        await message.answer("Выберите категорию", reply_markup=markup)
-        await state.set_state(AddExpenseState.waiting_for_category)
     except ValueError:
-        await message.answer("Произошла ошибка, повторите команду")
-        await state.clear()  # Завершаем состояние
+        await message.answer("Произошла ошибка. Проверьте формат сообщения. Используйте: 'сумма категория' или 'ID удалить'.")
+        logging.warning(f"Неправильный формат сообщения от {user_id}: {message.text}")
+
+    if message.from_user.id not in pending_reports:
+        pending_reports.add(message.from_user.id)
+        await asyncio.sleep(0.4)
+        await history(user_id)
+        await balance(user_id)
+        pending_reports.remove(message.from_user.id)
+        logging.info("Отправление отчета пользователю.")
 
 
-@dp.callback_query(AddExpenseState.waiting_for_category)
-async def process_new_expense_category(callback: CallbackQuery, state: FSMContext):
-    # Получаем категорию из callback_data
-    category = callback.data.split("_")[1]
-    data = await state.get_data()  # Достаём данные (сумма)
-    amount = data['amount']
-    date = datetime.now().date()
+async def history(user_id: int):
 
-    conn = sqlite3.connect('expenses.db')
+    logging.info("Попытка подкючения к БД в def history.")
+    conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
     cursor = conn.cursor()
-
-    # Добавляем запись в базу данных
-    cursor.execute('''
-        INSERT INTO expenses (user_id, username, amount, category, date)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (callback.from_user.id, callback.from_user.full_name, amount, category, date))
-
-    conn.commit()
-    conn.close()
-
-    await callback.message.answer(f"Запись успешно добавлена!")
-    await state.clear()  # Завершаем состояние
-
-
-@dp.message(Command("history"))
-async def show_history(message: Message, state: FSMContext):
-    logger.info(f"Получена команда /history от {message.from_user.id}")
-    await state.clear()  # Сбрасываем текущее состояние пользователя
-
-    if message.from_user.id not in ALLOWED_USERS:
-        await message.answer("У вас нет доступа к этому боту.")
-        return
-
-    try:
-        # Отправляем кнопки с категориями
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Неделя", callback_data="time_history_week"),
-                InlineKeyboardButton(text="Месяц", callback_data="time_history_month"),
-                InlineKeyboardButton(text="Все время", callback_data="time_history_all"),
-            ]])
-        await message.answer("Выберите период для просмотра истории", reply_markup=markup)
-    except ValueError:
-        await message.answer("Произошла ошибка, повторите команду.")
-        await state.clear()  # Завершаем состояние
-
-@dp.callback_query(lambda callback: callback.data in ["time_history_week", "time_history_month", "time_history_all"])
-async def process_time_history(callback: CallbackQuery):
+    logging.info("Успешное подкючение к БД.")
 
     today = datetime.now()
-
-    if callback.data == "time_history_week":
-        start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')  # 7 дней назад
-        end_date = today.strftime('%Y-%m-%d')
-        query = '''
-            SELECT id, username, amount, category, date 
-            FROM expenses 
-            WHERE date BETWEEN ? AND ?
-            ORDER BY id
-        '''
-        params = (start_date, end_date)
-
-    elif callback.data == "time_history_month":
-        start_date = today.replace(day=1).strftime('%Y-%m-%d')
-        end_date = today.strftime('%Y-%m-%d')
-        query = '''
-            SELECT id, username, amount, category, date 
-            FROM expenses 
-            WHERE date BETWEEN ? AND ?
-            ORDER BY id
-        '''
-        params = (start_date, end_date)
-
-    elif callback.data == "time_history_all":
-        query = '''
-            SELECT id, username, amount, category, date 
-            FROM expenses 
-            ORDER BY id
-        '''
-        params = ()
-    
-    conn = sqlite3.connect('expenses.db')
-    cursor = conn.cursor()
+    start_date = today.replace(day=1).strftime('%Y-%m-%d')
+    end_date = today.strftime('%Y-%m-%d')
+    query = '''
+        SELECT id, username, amount, category, date 
+        FROM expenses 
+        WHERE date BETWEEN ? AND ?
+        ORDER BY id
+    '''
+    params = (start_date, end_date)
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
-    
-    if rows:
-        user_totals = {}
-        for row in rows:
-            user = row[1]  # Имя пользователя
-            amount = row[2]  # Сумма траты
-            user_totals[user] = round(user_totals.get(user, 0) + amount, 2)
-        history = "\n".join([f"{row[0]}. {row[1]} | {row[2]} € | {row[3]} | {row[4]}" for row in rows])
-        totals_text = "\n".join([f"{user}: {total} €" for user, total in user_totals.items()])
-        await callback.message.answer(f"История расходов:\n\n{history}\n\nСумма трат за период:\n{totals_text}")
-    else:
-        await callback.message.answer("За этот период нет данных.")
-    
     conn.close()
-    await callback.answer()
 
-@dp.message(Command("balance"))
-async def calculate_balance(message: Message, state: FSMContext):
-    logger.info(f"Получена команда /balance от {message.from_user.id}")
-    await state.clear()  # Сбрасываем текущее состояние пользователя
+    user_totals = {}
+    for row in rows:
+        user = row[1]
+        amount = row[2]
+        user_totals[user] = round(user_totals.get(user, 0) + amount, 2)
+    history = "\n".join([f"{row[0]}. {row[1]} | {row[2]} € | {row[3]} | {row[4]}" for row in rows])
+    totals_text = "\n".join([f"{user}: {total} €" for user, total in user_totals.items()])
 
-    if message.from_user.id not in ALLOWED_USERS:
-        await message.answer("У вас нет доступа к этому боту.")
-        return
+    await bot.send_message(user_id, f"История расходов:\n\n{history}\n\nСумма трат за месяц:\n{totals_text}")
+    
 
-    conn = sqlite3.connect('expenses.db')
+async def balance(user_id: int):
+
+    logging.info("Попытка подкючения к БД в def balance.")
+    conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
     cursor = conn.cursor()
+    logging.info("Успешное подкючение к БД.")
 
-    # Запрос для получения сумм всех пользователей
     cursor.execute('''
         SELECT user_id, SUM(amount) as total_amount
         FROM expenses
         GROUP BY user_id
     ''')
     rows = cursor.fetchall()
-    conn.close()
-
-    # Создаём словарь {user_id: total_amount}
     user_expenses = {row[0]: row[1] for row in rows}
-
-    # Проверяем, что ровно два пользователя участвуют
-    if len(user_expenses) != 2:
-        await message.answer("Ошибка: Баланс можно рассчитать только для двух пользователей.")
-        await state.clear()
-        return
-
-    # Получаем ID текущего пользователя и второго пользователя
-    current_user_id = message.from_user.id
-    other_user_id = next(uid for uid in user_expenses.keys() if uid != current_user_id)
-
-    # Получаем траты обоих пользователей
-    current_user_expenses = user_expenses.get(current_user_id, 0)
-    other_user_expenses = user_expenses.get(other_user_id, 0)
-
-    # Общая сумма всех расходов
-    total_expenses = current_user_expenses + other_user_expenses
-
-    # Доля каждого пользователя
-    each_share = total_expenses / 2
-
-    # Расчет баланса для текущего пользователя
-    current_user_balance = current_user_expenses - each_share
-
-    # Формируем сообщение
-    if current_user_balance > 0:
-        await message.answer(f"Ваш баланс составляет +{current_user_balance:.2f} €.")
-    elif current_user_balance < 0:
-        await message.answer(f"Ваш баланс составляет {current_user_balance:.2f} €.")
-    else:
-        await message.answer("Ваш баланс составляет 0 €.")
-
-    await state.clear()  # Завершаем состояние
-
-
-@dp.message(Command("delete"))
-async def delete_expense_start(message: Message, state: FSMContext):
-    logger.info(f"Получена команда /delete от {message.from_user.id}")
-    await state.clear()  # Сбрасываем текущее состояние пользователя
-
-    if message.from_user.id not in ALLOWED_USERS:
-        await message.answer("У вас нет доступа к этому боту.")
-        return
-
-    await message.answer("Введите ID записи, которую хотите удалить")
-    await state.set_state(AddExpenseState.waiting_for_id)
-
-
-@dp.message(AddExpenseState.waiting_for_id)
-async def process_delete_expense(message: Message, state: FSMContext):
-    try:
-        # Проверяем, что введено число
-        id = int(message.text)
-    except ValueError:
-        await message.answer("ID должен быть числом. Попробуйте снова.")
-        await state.clear()  # Завершаем состояние
-        return
-
-    conn = sqlite3.connect('expenses.db')
-    cursor = conn.cursor()
-
-    # Проверяем, существует ли запись с таким ID
-    cursor.execute("SELECT * FROM expenses WHERE id = ?", (id,))
-    record = cursor.fetchone()
-
-    if record is None:
-        await message.answer(f"Запись с ID {id} не найдена.")
-    else:
-        # Удаляем запись
-        cursor.execute("DELETE FROM expenses WHERE id = ?", (id,))
-        conn.commit()
-        await message.answer(f"Запись с ID №{id} успешно удалена.")
-
     conn.close()
-    await state.clear()  # Завершаем состояние
+
+    if len(user_expenses) == 2:
+        total_expenses = sum(user_expenses.values())
+        each_share = total_expenses / 2
+        balance = user_expenses.get(user_id, 0) - each_share
+        balance_message = f"Ваш баланс составляет: {'+' if balance >= 0 else ''}{balance:.2f} €"
+    else:
+        balance_message = "Баланс можно рассчитать только для двух пользователей."
+    await bot.send_message(user_id, balance_message)
 
 
-async def on_startup(app):
-    webhook_url = f"https://sheetavod.onrender.com/webhook"
-    logger.info(f"Установка вебхука: {webhook_url}")
-    response = await bot.set_webhook(webhook_url)
-    logger.info(f"Результат установки вебхука: {response}")
+async def notify_other_user(user_id: int, amount: float, category: str, message):
+    next_user_id = next(uid for uid in ALLOWED_USERS if uid != user_id)
+    username = message.from_user.full_name
+    await bot.send_message(
+        chat_id = next_user_id,
+        text = f"Пользователь {username} добавил запись: {amount:.2f} € с пометкой '{category}'."
+    )
+    await balance(next_user_id)
 
 
-async def on_shutdown(app):
-    logger.info("Удаление вебхука")
-    await bot.delete_webhook()
-
-
-async def log_requests(request, handler):
-    logger.info(f"Получен запрос: {request.method} {request.path}")
-    response = await handler(request)
-    logger.info(f"Ответ: {response.status}")
-    return response
-
-async def handle_root(request):
-    logger.info(f'ROOT> {request.method} {request.path}')
-    return web.Response(status=200, text="КОК")
-
-async def handle_head(request):
-    logger.info(f'HEAD> {request.method} {request.path}')
-    return web.Response(status=200, text="OK")
-
-SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-
-app.router.add_route('GET', '/', handle_root)
-app.router.add_route('HEAD', '/webhook', handle_head) # перенос на webhook and on uptime
-app.router.add_route('POST', '/webhook', log_requests)
-app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
+async def main():
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
-    try:
-        web.run_app(app, port=int(os.getenv("PORT", 5000)))
-    except Exception as e:
-        logging.error(f"Ошибка: {e}")
+    asyncio.run(main())
