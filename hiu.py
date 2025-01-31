@@ -3,10 +3,11 @@ import logging
 logging.basicConfig(
     level = logging.INFO,
     format = "%(asctime)s - %(levelname)s - %(message)s",
-    handlers = [  logging.FileHandler("bot.log", encoding="utf-8"),
+    handlers = [logging.FileHandler(r"C:\Users\Vladi\Desktop\dich\python\tg_bot-1\bot.log", encoding="utf-8"),
                 logging.StreamHandler()])
 
 logging.info("Бот запущен.")
+logging.getLogger("aiogram").setLevel(logging.INFO)
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
@@ -14,9 +15,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime
 import sqlite3
 import asyncio
-from config import TOKEN
 
-bot = Bot(token=TOKEN)
+bot = Bot(token='7809031263:AAFM3oVlukcyaxydu-tQme4c3imS-wqqKNc')
 dp = Dispatcher(storage=MemoryStorage())
 
 ALLOWED_USERS = {660558578, 432192596}
@@ -29,56 +29,58 @@ sqlite3.register_converter("timestamp", lambda s: datetime.strptime(s.decode(), 
 @dp.message()
 async def handle_all_messages(message: Message):
 
-    logging.info(f"Пользователь {user_id} отправил сообщение: {message.text}")
-
     if message.from_user.id not in ALLOWED_USERS:
         await message.answer("У вас нет доступа к этому боту.")
         return
 
-    session_messages.append(message)
-
     user_id = message.from_user.id
     username = message.from_user.full_name
     text = message.text.strip()
+    logging.info(f"Пользователь {user_id} отправил сообщение: {message.text}")
+
+    session_messages.append(message)
 
     try:
         parts = text.split()
+
         if len(parts) != 2:
-            await message.answer("Неверный формат. Используйте: 'сумма категория' или 'ID удалить'.")
+            await message.answer("Неверный формат. Требуется: <сумма категория> (25 еда) или <ID удалить> (7 удалить).")
             logging.warning(f"Неправильный формат сообщения от {user_id}: {message.text}")
             return
+        
+        date = message.date.strftime('%Y-%m-%d')
+        category = parts[1]
         
         logging.info("Попытка подкючения к БД.")
         conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
         cursor = conn.cursor()
         logging.info("Успешное подкючение к БД.")
+
         # Добавление записи
         if parts[1].lower() != "удалить":
             amount = float(parts[0].replace(",", "."))
-            category = parts[1]
-            date = message.date.strftime('%Y-%m-%d')
             cursor.execute('''
                 INSERT INTO expenses (user_id, username, amount, category, date)
                 VALUES (?, ?, ?, ?, ?)
             ''', (user_id, username, amount, category, date))
             conn.commit()
             conn.close()
+            logging.info(f"Добавлена запись: {user_id, username, amount, category, date}")
             await message.answer(f"Запись добавлена: {amount} € в категорию {category}!")
-            logging.info(f"Добавлена новая запись в базу данных: {user_id, username, amount, category, date}")
             await notify_other_user(user_id, amount, category, message)
 
         # Удаление записи
         elif parts[1].lower() == "удалить":
             id = int(parts[0])
             cursor.execute("DELETE FROM expenses WHERE id = ?;", (id,))
+            await message.answer(f"Запись с ID {id} была удалена.")
             conn.commit()
             conn.close()
-            await message.answer(f"Запись с ID {id} была удалена.")
-            logging.info(f"Удаление записи пользователем {username} с id={id}, евро={amount}, пометка={category}, дата={date}.")
+            logging.info(f"Удаление записи: {id, username, amount, category, date}.")
 
     except ValueError:
-        await message.answer("Произошла ошибка. Проверьте формат сообщения. Используйте: 'сумма категория' или 'ID удалить'.")
-        logging.warning(f"Неправильный формат сообщения от {user_id}: {message.text}")
+        await message.answer("Произошла ошибка. Используйте: <сумма категория> (10 аптека) или <ID удалить> (25 удалить).")
+        logging.warning(f"Неправильный формат сообщения от {username}: {message.text}") 
 
     if message.from_user.id not in pending_reports:
         pending_reports.add(message.from_user.id)
@@ -164,3 +166,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+logging.info("Бот отключен.")
