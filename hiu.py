@@ -1,14 +1,3 @@
-import logging
-
-logging.basicConfig(
-    level = logging.INFO,
-    format = "%(asctime)s - %(levelname)s - %(message)s",
-    handlers = [logging.FileHandler(r"C:\Users\Vladi\Desktop\dich\python\tg_bot-1\bot.log", encoding="utf-8"),
-                logging.StreamHandler()])
-
-logging.info("Бот запущен.")
-logging.getLogger("aiogram").setLevel(logging.INFO)
-
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -36,7 +25,6 @@ async def handle_all_messages(message: Message):
     user_id = message.from_user.id
     username = message.from_user.full_name
     text = message.text.strip()
-    logging.info(f"Пользователь {user_id} отправил сообщение: {message.text}")
 
     session_messages.append(message)
 
@@ -45,58 +33,57 @@ async def handle_all_messages(message: Message):
 
         if len(parts) != 2:
             await message.answer("Неверный формат. Требуется: <сумма категория> (25 еда) или <ID удалить> (7 удалить).")
-            logging.warning(f"Неправильный формат сообщения от {user_id}: {message.text}")
             return
         
-        date = message.date.strftime('%Y-%m-%d')
-        category = parts[1]
-        
-        logging.info("Попытка подкючения к БД.")
         conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
         cursor = conn.cursor()
-        logging.info("Успешное подкючение к БД.")
 
         # Добавление записи
-        if parts[1].lower() != "удалить":
+        if parts[1].lower() != "удалить" and parts[1].lower() != "история":
             amount = float(parts[0].replace(",", "."))
+            category = parts[1]
+            date = message.date.strftime('%Y-%m-%d')
             cursor.execute('''
                 INSERT INTO expenses (user_id, username, amount, category, date)
                 VALUES (?, ?, ?, ?, ?)
             ''', (user_id, username, amount, category, date))
             conn.commit()
             conn.close()
-            logging.info(f"Добавлена запись: {user_id, username, amount, category, date}")
-            await message.answer(f"Запись добавлена: {amount} € в категорию {category}!")
+            await message.answer(f"Запись добавлена: {amount} € с пометкой {category}.")
             await notify_other_user(user_id, amount, category, message)
 
         # Удаление записи
         elif parts[1].lower() == "удалить":
             id = int(parts[0])
             cursor.execute("DELETE FROM expenses WHERE id = ?;", (id,))
-            await message.answer(f"Запись с ID {id} была удалена.")
+            await message.answer(f"Запись с id {id} была удалена.")
             conn.commit()
             conn.close()
-            logging.info(f"Удаление записи: {id, username, amount, category, date}.")
+
+        # Просмотр всей истории
+        elif parts == ["вся", "история"]:
+            conn = sqlite3.connect('expenses.db')
+            cursor.execute("SELECT * FROM expenses ORDER BY id;")
+            rows = cursor.fetchall()
+            for row in rows:
+                all_history = "\n".join([f"{row[0]}. {row[2]} € | {row[3]} | {row[4]}| {row[5]}" for row in rows])
+            await bot.send_message(user_id, f"История расходов:\n\n{all_history}")
+            conn.close()
 
     except ValueError:
-        await message.answer("Произошла ошибка. Используйте: <сумма категория> (10 аптека) или <ID удалить> (25 удалить).")
-        logging.warning(f"Неправильный формат сообщения от {username}: {message.text}") 
+        await message.answer("Произошла ошибка. Используйте: <сумма категория> (10 аптека) или <id удалить> (25 удалить).")
 
-    if message.from_user.id not in pending_reports:
+    if message.from_user.id not in pending_reports and ["вся", "история"] != parts:
         pending_reports.add(message.from_user.id)
         await asyncio.sleep(0.4)
         await history(user_id)
         await balance(user_id)
         pending_reports.remove(message.from_user.id)
-        logging.info("Отправление отчета пользователю.")
 
 
 async def history(user_id: int):
-
-    logging.info("Попытка подкючения к БД в def history.")
     conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
     cursor = conn.cursor()
-    logging.info("Успешное подкючение к БД.")
 
     today = datetime.now()
     start_date = today.replace(day=1).strftime('%Y-%m-%d')
@@ -126,10 +113,8 @@ async def history(user_id: int):
 
 async def balance(user_id: int):
 
-    logging.info("Попытка подкючения к БД в def balance.")
     conn = sqlite3.connect(r'C:\Users\Vladi\Desktop\dich\python\tg_bot-1\expenses.db')
     cursor = conn.cursor()
-    logging.info("Успешное подкючение к БД.")
 
     cursor.execute('''
         SELECT user_id, SUM(amount) as total_amount
@@ -163,8 +148,5 @@ async def notify_other_user(user_id: int, amount: float, category: str, message)
 async def main():
     await dp.start_polling(bot)
 
-
 if __name__ == "__main__":
     asyncio.run(main())
-
-logging.info("Бот отключен.")
