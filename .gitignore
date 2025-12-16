@@ -1,0 +1,38 @@
+# Environment variables
+.env
+
+# Database files
+*.db
+*.db-journal
+
+# Log files
+*.log
+
+# Backup database files
+expenses copy*.db
+db-copies/
+
+# Windows executables/scripts
+*.bat
+*.vbs
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
