@@ -1,2 +1,2 @@
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "cmd /c start /min pythonw C:\Users\Vladi\Desktop\dich\python\tg_bot-1\hiu.py", 0
+WshShell.Run """C:\Users\Vladi\AppData\Local\Programs\Python\Python311\pythonw.exe"" ""C:\Users\Vladi\Desktop\dich\python\back\tg_bot\bot.py""", 0
