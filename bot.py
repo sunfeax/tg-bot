@@ -1,171 +1,245 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.exceptions import TelegramForbiddenError
 from datetime import datetime
+from pathlib import Path
 import sqlite3
 import asyncio
+import logging
 import os
+import re
 from dotenv import load_dotenv
-from aiogram.exceptions import TelegramForbiddenError
 
-with open("start.log", "a") as f:
-  f.write("BOT STARTED\n")
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "expenses.db"
 
-load_dotenv()
+load_dotenv(BASE_DIR / ".env")
 
-bot = Bot(token=os.getenv('TOKEN'))
+logging.basicConfig(
+  level=logging.INFO,
+  format="%(asctime)s [%(levelname)s] %(message)s",
+  handlers=[
+    logging.FileHandler(BASE_DIR / "bot.log", encoding="utf-8"),
+    logging.StreamHandler(),
+  ],
+)
+log = logging.getLogger(__name__)
+
+ALLOWED_USERS = set(
+  int(uid.strip())
+  for uid in os.getenv("ALLOWED_USER_IDS", "").split(",")
+  if uid.strip()
+)
+
+bot = Bot(token=os.getenv("TOKEN"))
 dp = Dispatcher(storage=MemoryStorage())
 
-ALLOWED_USERS = {660558578, 432192596}
-session_messages = []
-pending_reports = set()
+ADD_PATTERN = re.compile(r'^(\d+[.,]?\d*)\s+(\S+)$')
+DEL_PATTERN = re.compile(r'^(\d+)\s+удалить$', re.IGNORECASE)
+HIST_PATTERN = re.compile(r'^вся\s+история$', re.IGNORECASE)
 
 sqlite3.register_adapter(datetime, lambda d: d.strftime('%Y-%m-%d'))
 sqlite3.register_converter("timestamp", lambda s: datetime.strptime(s.decode(), '%Y-%m-%d'))
 
+summary_timers: dict[int, asyncio.Task] = {}
+
+MAX_MSG_LEN = 4096
+
+
+async def send_long(user_id: int, text: str):
+  for i in range(0, max(len(text), 1), MAX_MSG_LEN):
+    await bot.send_message(user_id, text[i:i + MAX_MSG_LEN])
+
+
+async def _send_summary(user_id: int):
+  await asyncio.sleep(1.5)
+  await history(user_id)
+  await balance(user_id)
+
+
+def schedule_summary(user_id: int):
+  task = summary_timers.get(user_id)
+  if task and not task.done():
+    task.cancel()
+  summary_timers[user_id] = asyncio.create_task(_send_summary(user_id))
+
+
 @dp.message()
 async def handle_all_messages(message: Message):
+  if not message.text:
+    await message.answer("Бот принимает только текстовые сообщения.")
+    return
 
-    if message.from_user.id not in ALLOWED_USERS:
-        await message.answer("У вас нет доступа к этому боту.")
-        return
+  if message.from_user.id not in ALLOWED_USERS:
+    await message.answer("У вас нет доступа к этому боту.")
+    return
 
-    user_id = message.from_user.id
-    username = message.from_user.full_name
-    text = message.text.strip()
+  user_id = message.from_user.id
+  username = message.from_user.full_name
+  text = message.text.strip()
 
-    session_messages.append(message)
+  log.info(f"[{username} | {user_id}] {text!r}")
 
-    try:
-        parts = text.split()
+  try:
+    if DEL_PATTERN.match(text):
+      record_id = int(DEL_PATTERN.match(text).group(1))
+      await handle_delete(message, user_id, username, record_id)
 
-        if len(parts) != 2:
-            await message.answer("Неверный формат. Требуется: <сумма категория> (25 еда) или <ID удалить> (7 удалить).")
-            return
-        
-        conn = sqlite3.connect('expenses.db')
-        cursor = conn.cursor()
+    elif HIST_PATTERN.match(text):
+      await full_history(user_id)
+      return
 
-        # Добавление записи
-        if parts[1].lower() != "удалить" and parts[1].lower() != "история":
-            amount = float(parts[0].replace(",", "."))
-            category = parts[1]
-            date = datetime.now().strftime('%Y-%m-%d')
-            cursor.execute('''
-                INSERT INTO expenses (user_id, username, amount, category, date)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (user_id, username, amount, category, date))
-            conn.commit()
-            conn.close()
-            await message.answer(f"Запись добавлена: {amount} € с пометкой {category}.")
-            await notify_other_user(user_id, amount, category, message)
+    elif ADD_PATTERN.match(text):
+      m = ADD_PATTERN.match(text)
+      amount = float(m.group(1).replace(",", "."))
+      category = m.group(2)
+      await handle_add(message, user_id, username, amount, category)
 
-        # Удаление записи
-        elif parts[1].lower() == "удалить":
-            record_id = int(parts[0])
-            cursor.execute("DELETE FROM expenses WHERE id = ?;", (record_id,))
-            await message.answer(f"Запись с id {record_id} была удалена.")
-            conn.commit()
-            conn.close()
+    else:
+      await message.answer(
+        "Не распознана команда. Доступные форматы:\n"
+        "• <сумма> <категория> — добавить запись (25 еда)\n"
+        "• <id> удалить — удалить запись (7 удалить)\n"
+        "• вся история — показать все записи"
+      )
+      return
 
-        # Просмотр всей истории
-        elif parts[0].lower() == "вся" and parts[1].lower() == "история":
-            cursor.execute("SELECT * FROM expenses ORDER BY id;")
-            rows = cursor.fetchall()
-            all_history = "\n".join([f"{row[0]}. {row[2]} € | {row[3]} | {row[4]} | {row[5]}" for row in rows])
-            try:
-                await bot.send_message(user_id, f"История расходов:\n\n{all_history}")
-            except TelegramForbiddenError:
-                print(f"Бот заблокирован пользователем {user_id}")
-            conn.close()
+  except Exception as e:
+    log.exception(f"Ошибка при обработке сообщения от {username}: {e}")
+    await message.answer("Произошла внутренняя ошибка. Попробуйте ещё раз.")
+    return
 
-    except ValueError:
-        await message.answer("Произошла ошибка. Используйте: <сумма категория> (10 аптека) или <id удалить> (25 удалить).")
+  for uid in ALLOWED_USERS:
+    schedule_summary(uid)
 
-    if message.from_user.id not in pending_reports and not (parts[0].lower() == "вся" and parts[1].lower() == "история"):
-        pending_reports.add(message.from_user.id)
-        await asyncio.sleep(0.4)
-        await history(user_id)
-        await balance(user_id)
-        pending_reports.remove(message.from_user.id)
+
+async def handle_add(message: Message, user_id: int, username: str, amount: float, category: str):
+  with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    date = datetime.now().strftime('%Y-%m-%d')
+    cursor.execute(
+      'INSERT INTO expenses (user_id, username, amount, category, date) VALUES (?, ?, ?, ?, ?)',
+      (user_id, username, amount, category, date),
+    )
+    conn.commit()
+  log.info(f"Добавлено: {amount}€ | {category} | {username}")
+  await message.answer(f"Запись добавлена: {amount} € с пометкой {category}.")
+  await notify_other_user(
+    user_id,
+    f"Пользователь {username} добавил запись: {amount:.2f} € с пометкой '{category}'.",
+  )
+
+
+async def handle_delete(message: Message, user_id: int, username: str, record_id: int):
+  with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.execute(
+      "SELECT username, amount, category, date FROM expenses WHERE id = ?",
+      (record_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+      await message.answer(f"Запись с id {record_id} не найдена.")
+      return
+    rec_username, rec_amount, rec_category, rec_date = row
+    cursor.execute("DELETE FROM expenses WHERE id = ?", (record_id,))
+    conn.commit()
+  log.info(f"Удалено id={record_id}: {rec_amount}€ | {rec_category} | {rec_username}")
+  await message.answer(
+    f"Запись #{record_id} удалена: {rec_amount} € | {rec_category} | {rec_date}."
+  )
+  await notify_other_user(
+    user_id,
+    f"Пользователь {username} удалил запись #{record_id}: "
+    f"{rec_amount:.2f} € | {rec_category} | {rec_date}.",
+  )
 
 
 async def history(user_id: int):
-    conn = sqlite3.connect('expenses.db')
+  with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
-
     today = datetime.now()
     start_date = today.replace(day=1).strftime('%Y-%m-%d')
     end_date = today.strftime('%Y-%m-%d')
-    query = '''
-        SELECT id, username, amount, category, date
-        FROM expenses
-        WHERE date BETWEEN ? AND ?
-        ORDER BY id
-    '''
-    params = (start_date, end_date)
-
-    cursor.execute(query, params)
+    cursor.execute(
+      'SELECT id, username, amount, category, date FROM expenses '
+      'WHERE date BETWEEN ? AND ? ORDER BY id',
+      (start_date, end_date),
+    )
     rows = cursor.fetchall()
-    conn.close()
 
-    user_totals = {}
-    for row in rows:
-        user = row[1]
-        amount = row[2]
-        user_totals[user] = round(user_totals.get(user, 0) + amount, 2)
-    history_text = "\n".join([f"{row[0]}. {row[1]} | {row[2]} € | {row[3]} | {row[4]}" for row in rows])
-    totals_text = "\n".join([f"{user}: {total} €" for user, total in user_totals.items()])
+  user_totals = {}
+  for row in rows:
+    user_totals[row[1]] = round(user_totals.get(row[1], 0) + row[2], 2)
 
-    try:
-        await bot.send_message(user_id, f"История расходов:\n\n{history_text}\n\nСумма трат за месяц:\n{totals_text}")
-    except TelegramForbiddenError:
-        print(f"Бот заблокирован пользователем {user_id}")
-    
+  history_text = "\n".join([f"{r[0]}. {r[1]} | {r[2]} € | {r[3]} | {r[4]}" for r in rows])
+  totals_text = "\n".join([f"{u}: {t} €" for u, t in user_totals.items()])
+
+  try:
+    await bot.send_message(
+      user_id,
+      f"История расходов:\n\n{history_text}\n\nСумма трат за месяц:\n{totals_text}",
+    )
+  except TelegramForbiddenError:
+    log.warning(f"Бот заблокирован пользователем {user_id}")
+
+
+async def full_history(user_id: int):
+  with sqlite3.connect(DB_PATH) as conn:
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, amount, category, date FROM expenses ORDER BY id")
+    rows = cursor.fetchall()
+
+  if not rows:
+    await bot.send_message(user_id, "История расходов пуста.")
+    return
+
+  all_history = "\n".join([f"{r[0]}. {r[1]} | {r[2]} € | {r[3]} | {r[4]}" for r in rows])
+  try:
+    await send_long(user_id, f"Вся история расходов:\n\n{all_history}")
+  except TelegramForbiddenError:
+    log.warning(f"Бот заблокирован пользователем {user_id}")
+  except Exception as e:
+    log.exception(f"Ошибка отправки полной истории пользователю {user_id}: {e}")
+
 
 async def balance(user_id: int):
-
-    conn = sqlite3.connect('expenses.db')
+  with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
-
-    cursor.execute('''
-        SELECT user_id, SUM(amount) as total_amount
-        FROM expenses
-        GROUP BY user_id
-    ''')
+    cursor.execute("SELECT user_id, SUM(amount) FROM expenses GROUP BY user_id")
     rows = cursor.fetchall()
-    user_expenses = {row[0]: row[1] for row in rows}
-    conn.close()
 
-    if len(user_expenses) == 2:
-        total_expenses = sum(user_expenses.values())
-        each_share = total_expenses / 2
-        balance = user_expenses.get(user_id, 0) - each_share
-        balance_message = f"Ваш баланс составляет: {'+' if balance >= 0 else ''}{balance:.2f} €"
-    else:
-        balance_message = "Баланс можно рассчитать только для двух пользователей."
-    
-    try:
-        await bot.send_message(user_id, balance_message)
-    except TelegramForbiddenError:
-        print(f"Бот заблокирован пользователем {user_id}")
+  user_expenses = {row[0]: row[1] for row in rows}
+
+  if len(user_expenses) == 2:
+    total = sum(user_expenses.values())
+    each_share = total / 2
+    bal = user_expenses.get(user_id, 0) - each_share
+    msg = f"Ваш баланс составляет: {'+' if bal >= 0 else ''}{bal:.2f} €"
+  else:
+    msg = "Баланс можно рассчитать только для двух пользователей."
+
+  try:
+    await bot.send_message(user_id, msg)
+  except TelegramForbiddenError:
+    log.warning(f"Бот заблокирован пользователем {user_id}")
 
 
-async def notify_other_user(user_id: int, amount: float, category: str, message):
-    next_user_id = next(uid for uid in ALLOWED_USERS if uid != user_id)
-    username = message.from_user.full_name
-    try:
-        await bot.send_message(
-            chat_id = next_user_id,
-            text = f"Пользователь {username} добавил запись: {amount:.2f} € с пометкой '{category}'."
-        )
-        await balance(next_user_id)
-    except TelegramForbiddenError:
-        print(f"Бот заблокирован пользователем {next_user_id}")
+async def notify_other_user(sender_id: int, text: str):
+  other = next((uid for uid in ALLOWED_USERS if uid != sender_id), None)
+  if other is None:
+    return
+  try:
+    await bot.send_message(chat_id=other, text=text)
+  except TelegramForbiddenError:
+    log.warning(f"Бот заблокирован пользователем {other}")
 
 
 async def main():
-    await dp.start_polling(bot)
+  log.info("Бот запущен")
+  await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+  asyncio.run(main())
