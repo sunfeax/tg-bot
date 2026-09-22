@@ -176,7 +176,7 @@ async def handle_add(
   message: Message, user_id: int, username: str, amount: float, category: str, comment: str | None
 ):
   with sqlite3.connect(DB_PATH) as conn:
-    date = datetime.now().strftime('%Y-%m-%d')
+    date = message.date.astimezone().strftime('%Y-%m-%d')
     conn.execute(
       'INSERT INTO expenses (user_id, username, amount, category, date, comment) '
       'VALUES (?, ?, ?, ?, ?, ?)',

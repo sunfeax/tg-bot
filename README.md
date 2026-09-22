@@ -46,6 +46,7 @@ The bot's SQLite database is stored in `./data`, which is mounted into the conta
 
 - `TOKEN` — Telegram bot token
 - `ALLOWED_USER_IDS` — comma-separated Telegram user IDs allowed to use the bot
+- `TZ` — timezone for expense dates, logs and backups (default `Europe/Madrid`)
 - `LOG_LEVEL` — logging level (default `INFO`); set `WARNING` to hide routine logs
 
 ## Usage
