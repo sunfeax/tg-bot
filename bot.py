@@ -44,8 +44,7 @@ MONTH_PATTERN = re.compile(r'^(\d{1,2})/(\d{4})$')
 
 TRANSFER_WORDS = {"одолжил", "одолжила", "вернул", "вернула"}
 
-HELP_TEXT = (
-  "Не распознана команда. Доступные форматы:\n"
+COMMANDS_TEXT = (
   "• <сумма> <категория> [комментарий] — добавить запись (25 еда пятёрочка)\n"
   "• <сумма> одолжил(а) [комментарий] — вы дали деньги в долг (50 одолжила)\n"
   "• <сумма> вернул(а) [комментарий] — вы вернули долг (50 вернул)\n"
@@ -53,6 +52,8 @@ HELP_TEXT = (
   "• отмена — удалить свою последнюю запись\n"
   "• <месяц>/<год> — история за месяц (2/2026)"
 )
+HELP_TEXT = f"Не распознана команда. Доступные форматы:\n{COMMANDS_TEXT}"
+PINNED_HELP = f"Доступные команды ↓\n\n{COMMANDS_TEXT}"
 
 sqlite3.register_adapter(datetime, lambda d: d.strftime('%Y-%m-%d'))
 sqlite3.register_converter("timestamp", lambda s: datetime.strptime(s.decode(), '%Y-%m-%d'))
@@ -76,6 +77,12 @@ def init_db():
       conn.execute("ALTER TABLE expenses ADD COLUMN comment TEXT")
     if "kind" not in columns:
       conn.execute("ALTER TABLE expenses ADD COLUMN kind TEXT NOT NULL DEFAULT 'expense'")
+    conn.execute(
+      '''CREATE TABLE IF NOT EXISTS pinned_help (
+        user_id INTEGER PRIMARY KEY,
+        message_id INTEGER NOT NULL,
+        text TEXT NOT NULL)'''
+    )
     conn.commit()
 
 
@@ -323,8 +330,40 @@ async def notify_other_user(sender_id: int, text: str):
     log.warning(f"Бот заблокирован пользователем {other}")
 
 
+async def ensure_help_pinned(user_id: int):
+  with sqlite3.connect(DB_PATH) as conn:
+    saved = conn.execute(
+      "SELECT message_id, text FROM pinned_help WHERE user_id = ?", (user_id,)
+    ).fetchone()
+
+  pinned = (await bot.get_chat(user_id)).pinned_message
+  if saved and pinned and pinned.message_id == saved[0]:
+    if saved[1] == PINNED_HELP:
+      return
+    await bot.edit_message_text(PINNED_HELP, chat_id=user_id, message_id=saved[0])
+    message_id = saved[0]
+    log.info(f"Справка обновлена у {user_id}")
+  else:
+    sent = await bot.send_message(user_id, PINNED_HELP, disable_notification=True)
+    await bot.pin_chat_message(user_id, sent.message_id, disable_notification=True)
+    message_id = sent.message_id
+    log.info(f"Справка закреплена у {user_id}")
+
+  with sqlite3.connect(DB_PATH) as conn:
+    conn.execute(
+      "INSERT OR REPLACE INTO pinned_help (user_id, message_id, text) VALUES (?, ?, ?)",
+      (user_id, message_id, PINNED_HELP),
+    )
+    conn.commit()
+
+
 async def main():
   init_db()
+  for uid in ALLOWED_USERS:
+    try:
+      await ensure_help_pinned(uid)
+    except Exception:
+      log.exception(f"Не удалось закрепить справку у {uid}")
   backup_task = asyncio.create_task(backup_loop())
   log.info("Бот запущен")
   try:
