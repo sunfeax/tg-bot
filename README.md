@@ -40,12 +40,13 @@ A Telegram bot for tracking shared expenses between users. The bot allows author
    docker compose logs -f
    ```
 
-The bot's SQLite database and log file are stored in `./data`, which is mounted into the container so data persists across restarts and rebuilds.
+The bot's SQLite database is stored in `./data`, which is mounted into the container so data persists across restarts and rebuilds.
 
 ## Configuration
 
 - `TOKEN` — Telegram bot token
 - `ALLOWED_USER_IDS` — comma-separated Telegram user IDs allowed to use the bot
+- `LOG_LEVEL` — logging level (default `INFO`); set `WARNING` to hide routine logs
 
 ## Usage
 
@@ -66,9 +67,8 @@ The bot automatically calculates the balance between users after each transactio
 ## Files
 
 - `bot.py` — main bot application
-- `expenses.py` — utility script to view database contents
 - `Dockerfile`, `docker-compose.yml` — container setup
-- `data/` — persisted SQLite database and log file (created automatically)
+- `data/` — persisted SQLite database (created automatically)
 
 ## Security Notes
 
