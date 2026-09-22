@@ -51,15 +51,18 @@ The bot's SQLite database is stored in `./data`, which is mounted into the conta
 ## Usage
 
 ### Adding Expenses
-Send a message in the format: `<amount> <category>`
-Example: `25 food`
+Send a message in the format: `<amount> <category> [comment]`
+Examples: `25 food`, `25 food lunch with friends`
 
 ### Viewing History
-Send `вся история` to view all expense records for the current month
+Send `<month>/<year>` to view expense records for that month
+Example: `2/2026`
 
 ### Deleting Records
 Send a message in the format: `<ID> удалить`
 Example: `7 удалить`
+
+Send `отмена` to delete your most recent record
 
 ### Balance Calculation
 The bot automatically calculates the balance between users after each transaction
