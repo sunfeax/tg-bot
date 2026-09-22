@@ -4,17 +4,10 @@
 # Database files
 *.db
 *.db-journal
+data/
 
 # Log files
 *.log
-
-# Backup database files
-expenses copy*.db
-db-copies/
-
-# Windows executables/scripts
-*.bat
-*.vbs
 
 # Python cache
 __pycache__/
