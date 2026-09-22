@@ -2,6 +2,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.exceptions import TelegramForbiddenError
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 import sqlite3
@@ -18,6 +19,8 @@ load_dotenv(BASE_DIR / ".env")
 DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "expenses.db"
+BACKUP_DIR = DATA_DIR / "backups"
+BACKUP_KEEP = 3
 
 logging.basicConfig(
   level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -67,6 +70,29 @@ def init_db():
     if "comment" not in columns:
       conn.execute("ALTER TABLE expenses ADD COLUMN comment TEXT")
     conn.commit()
+
+
+def backup_db():
+  BACKUP_DIR.mkdir(exist_ok=True)
+  target = BACKUP_DIR / f"expenses-{datetime.now():%Y-%m-%d}.db"
+  if target.exists():
+    return
+  tmp = target.with_suffix(".tmp")
+  with closing(sqlite3.connect(DB_PATH)) as src, closing(sqlite3.connect(tmp)) as dst:
+    src.backup(dst)
+  tmp.replace(target)
+  for old in sorted(BACKUP_DIR.glob("expenses-*.db"))[:-BACKUP_KEEP]:
+    old.unlink()
+  log.info(f"Бэкап создан: {target.name}")
+
+
+async def backup_loop():
+  while True:
+    try:
+      await asyncio.to_thread(backup_db)
+    except Exception:
+      log.exception("Ошибка при создании бэкапа")
+    await asyncio.sleep(3600)
 
 summary_timers: dict[int, asyncio.Task] = {}
 
@@ -264,8 +290,12 @@ async def notify_other_user(sender_id: int, text: str):
 
 async def main():
   init_db()
+  backup_task = asyncio.create_task(backup_loop())
   log.info("Бот запущен")
-  await dp.start_polling(bot)
+  try:
+    await dp.start_polling(bot)
+  finally:
+    backup_task.cancel()
 
 
 if __name__ == "__main__":
