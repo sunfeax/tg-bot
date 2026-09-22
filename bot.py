@@ -20,12 +20,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "expenses.db"
 
 logging.basicConfig(
-  level=logging.INFO,
+  level=os.getenv("LOG_LEVEL", "INFO").upper(),
   format="%(asctime)s [%(levelname)s] %(message)s",
-  handlers=[
-    logging.FileHandler(DATA_DIR / "bot.log", encoding="utf-8"),
-    logging.StreamHandler(),
-  ],
 )
 log = logging.getLogger(__name__)
 
