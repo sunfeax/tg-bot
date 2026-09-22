@@ -12,15 +12,18 @@ import re
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "expenses.db"
 
 load_dotenv(BASE_DIR / ".env")
+
+DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "expenses.db"
 
 logging.basicConfig(
   level=logging.INFO,
   format="%(asctime)s [%(levelname)s] %(message)s",
   handlers=[
-    logging.FileHandler(BASE_DIR / "bot.log", encoding="utf-8"),
+    logging.FileHandler(DATA_DIR / "bot.log", encoding="utf-8"),
     logging.StreamHandler(),
   ],
 )
@@ -41,6 +44,20 @@ HIST_PATTERN = re.compile(r'^вся\s+история$', re.IGNORECASE)
 
 sqlite3.register_adapter(datetime, lambda d: d.strftime('%Y-%m-%d'))
 sqlite3.register_converter("timestamp", lambda s: datetime.strptime(s.decode(), '%Y-%m-%d'))
+
+
+def init_db():
+  with sqlite3.connect(DB_PATH) as conn:
+    conn.execute(
+      '''CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        username TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        date TEXT NOT NULL)'''
+    )
+    conn.commit()
 
 summary_timers: dict[int, asyncio.Task] = {}
 
@@ -237,6 +254,7 @@ async def notify_other_user(sender_id: int, text: str):
 
 
 async def main():
+  init_db()
   log.info("Бот запущен")
   await dp.start_polling(bot)
 

@@ -13,40 +13,39 @@ A Telegram bot for tracking shared expenses between users. The bot allows author
 
 ## Requirements
 
-- Python 3.7+
+- Docker and Docker Compose
 - Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 
-## Installation
+## Running with Docker
 
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd telegram-expense-tracker
+   cd tg-bot
    ```
 
-2. Install required packages:
-   ```bash
-   pip install aiogram python-dotenv
-   ```
-
-3. Create a `.env` file with your bot token:
+2. Create a `.env` file with your bot token and allowed user IDs:
    ```
    TOKEN="your-telegram-bot-token"
+   ALLOWED_USER_IDS="111111111,222222222"
    ```
 
-4. Run the bot:
+3. Build and start the bot:
    ```bash
-   python hiu.py
+   docker compose up -d --build
    ```
+
+4. View logs:
+   ```bash
+   docker compose logs -f
+   ```
+
+The bot's SQLite database and log file are stored in `./data`, which is mounted into the container so data persists across restarts and rebuilds.
 
 ## Configuration
 
-1. Edit the `ALLOWED_USERS` set in `hiu.py` with the Telegram user IDs of authorized users:
-   ```python
-   ALLOWED_USERS = {user_id_1, user_id_2}
-   ```
-
-2. The bot uses SQLite for data storage. The database file (`expenses.db`) will be created automatically.
+- `TOKEN` — Telegram bot token
+- `ALLOWED_USER_IDS` — comma-separated Telegram user IDs allowed to use the bot
 
 ## Usage
 
@@ -66,16 +65,15 @@ The bot automatically calculates the balance between users after each transactio
 
 ## Files
 
-- `hiu.py` - Main bot application
-- `expenses.py` - Utility script to view database contents
-- `expenses.db` - SQLite database file (created automatically)
-- `run_bot.vbs` - Windows VBScript to run the bot
-- `run-bot.bat` - Windows batch file to run the bot
+- `bot.py` — main bot application
+- `expenses.py` — utility script to view database contents
+- `Dockerfile`, `docker-compose.yml` — container setup
+- `data/` — persisted SQLite database and log file (created automatically)
 
 ## Security Notes
 
-- Store your bot token securely in the `.env` file
-- Only authorized users (defined in `ALLOWED_USERS`) can interact with the bot
+- Store your bot token securely in the `.env` file (never commit it)
+- Only authorized users (defined via `ALLOWED_USER_IDS`) can interact with the bot
 - Database files contain sensitive financial information
 
 ## License
