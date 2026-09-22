@@ -188,19 +188,30 @@ async def handle_add(
 ):
   with sqlite3.connect(DB_PATH) as conn:
     date = message.date.astimezone().strftime('%Y-%m-%d')
-    conn.execute(
+    record_id = conn.execute(
       'INSERT INTO expenses (user_id, username, amount, category, date, comment, kind) '
       'VALUES (?, ?, ?, ?, ?, ?, ?)',
       (user_id, username, amount, category, date, comment, kind),
-    )
+    ).lastrowid
     conn.commit()
-  what = describe(category, comment)
-  log.info(f"Добавлено: {amount}€ | {what} | {username}")
-  await message.answer(f"Запись добавлена: {amount} € | {what}.")
-  await notify_other_user(
-    user_id,
-    f"Пользователь {username} добавил запись: {amount:.2f} € | {what}.",
-  )
+  log.info(f"Добавлено id={record_id}: {amount}€ | {describe(category, comment)} | {username}")
+
+  if kind == "expense":
+    body = f"{amount:.2f} € | {describe(category, comment)} | {date}"
+    await message.answer(f"Трата #{record_id} добавлена\n{body}")
+    await notify_other_user(
+      user_id,
+      f"Новая трата #{record_id} — {username}\n{body}\nВаша половина: {amount / 2:.2f} €",
+    )
+    return
+
+  if category.startswith("одолж"):
+    title, mine, theirs = "Займ", "Вы дали в долг", "Вам дали в долг"
+  else:
+    title, mine, theirs = "Возврат долга", "Вы вернули", "Вам вернули"
+  body = f"{amount:.2f} €{f' ({comment})' if comment else ''} | {date}"
+  await message.answer(f"{title} #{record_id} записан\n{mine} {body}")
+  await notify_other_user(user_id, f"{title} #{record_id} — {username}\n{theirs} {body}")
 
 
 async def handle_delete(message: Message, user_id: int, username: str, record_id: int):
@@ -215,14 +226,13 @@ async def handle_delete(message: Message, user_id: int, username: str, record_id
     rec_username, rec_amount, rec_category, rec_comment, rec_date = row
     conn.execute("DELETE FROM expenses WHERE id = ?", (record_id,))
     conn.commit()
-  what = describe(rec_category, rec_comment)
-  log.info(f"Удалено id={record_id}: {rec_amount}€ | {what} | {rec_username}")
-  await message.answer(f"Запись #{record_id} удалена: {rec_amount} € | {what} | {rec_date}.")
-  await notify_other_user(
-    user_id,
-    f"Пользователь {username} удалил запись #{record_id}: "
-    f"{rec_amount:.2f} € | {what} | {rec_date}.",
+  body = (
+    f"{rec_username} | {rec_amount:.2f} € | "
+    f"{describe(rec_category, rec_comment)} | {rec_date}"
   )
+  log.info(f"Удалено id={record_id}: {body}")
+  await message.answer(f"Запись #{record_id} удалена\n{body}")
+  await notify_other_user(user_id, f"Удалена запись #{record_id} — {username}\n{body}")
 
 
 async def handle_undo(message: Message, user_id: int, username: str):
@@ -271,7 +281,6 @@ async def history(user_id: int, month: int, year: int):
 
 
 def signed(value: float) -> str:
-  # + 0.0 turns -0.0 into 0.0 so a zero balance prints as +0.00
   return f"{round(value, 2) + 0.0:+.2f} €"
 
 
