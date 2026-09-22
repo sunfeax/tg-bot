@@ -34,9 +34,18 @@ ALLOWED_USERS = set(
 bot = Bot(token=os.getenv("TOKEN"))
 dp = Dispatcher(storage=MemoryStorage())
 
-ADD_PATTERN = re.compile(r'^(\d+[.,]?\d*)\s+(\S+)$')
+ADD_PATTERN = re.compile(r'^(\d+[.,]?\d*)\s+(\S+)(?:\s+(.+))?$', re.DOTALL)
 DEL_PATTERN = re.compile(r'^(\d+)\s+удалить$', re.IGNORECASE)
-HIST_PATTERN = re.compile(r'^вся\s+история$', re.IGNORECASE)
+UNDO_PATTERN = re.compile(r'^отмена$', re.IGNORECASE)
+MONTH_PATTERN = re.compile(r'^(\d{1,2})/(\d{4})$')
+
+HELP_TEXT = (
+  "Не распознана команда. Доступные форматы:\n"
+  "• <сумма> <категория> [комментарий] — добавить запись (25 еда пятёрочка)\n"
+  "• <id> удалить — удалить запись (7 удалить)\n"
+  "• отмена — удалить свою последнюю запись\n"
+  "• <месяц>/<год> — история за месяц (2/2026)"
+)
 
 sqlite3.register_adapter(datetime, lambda d: d.strftime('%Y-%m-%d'))
 sqlite3.register_converter("timestamp", lambda s: datetime.strptime(s.decode(), '%Y-%m-%d'))
@@ -51,13 +60,21 @@ def init_db():
         username TEXT NOT NULL,
         amount REAL NOT NULL,
         category TEXT NOT NULL,
-        date TEXT NOT NULL)'''
+        date TEXT NOT NULL,
+        comment TEXT)'''
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(expenses)")}
+    if "comment" not in columns:
+      conn.execute("ALTER TABLE expenses ADD COLUMN comment TEXT")
     conn.commit()
 
 summary_timers: dict[int, asyncio.Task] = {}
 
 MAX_MSG_LEN = 4096
+
+
+def describe(category: str, comment: str | None) -> str:
+  return f"{category} ({comment})" if comment else category
 
 
 async def send_long(user_id: int, text: str):
@@ -67,7 +84,8 @@ async def send_long(user_id: int, text: str):
 
 async def _send_summary(user_id: int):
   await asyncio.sleep(1.5)
-  await history(user_id)
+  now = datetime.now()
+  await history(user_id, now.month, now.year)
   await balance(user_id)
 
 
@@ -95,27 +113,28 @@ async def handle_all_messages(message: Message):
   log.info(f"[{username} | {user_id}] {text!r}")
 
   try:
-    if DEL_PATTERN.match(text):
-      record_id = int(DEL_PATTERN.match(text).group(1))
-      await handle_delete(message, user_id, username, record_id)
+    if m := DEL_PATTERN.match(text):
+      await handle_delete(message, user_id, username, int(m.group(1)))
 
-    elif HIST_PATTERN.match(text):
-      await full_history(user_id)
+    elif UNDO_PATTERN.match(text):
+      await handle_undo(message, user_id, username)
+
+    elif m := MONTH_PATTERN.match(text):
+      month, year = int(m.group(1)), int(m.group(2))
+      if not 1 <= month <= 12:
+        await message.answer("Месяц должен быть от 1 до 12.")
+      else:
+        await history(user_id, month, year)
       return
 
-    elif ADD_PATTERN.match(text):
-      m = ADD_PATTERN.match(text)
+    elif m := ADD_PATTERN.match(text):
       amount = float(m.group(1).replace(",", "."))
       category = m.group(2)
-      await handle_add(message, user_id, username, amount, category)
+      comment = m.group(3).strip() if m.group(3) else None
+      await handle_add(message, user_id, username, amount, category, comment)
 
     else:
-      await message.answer(
-        "Не распознана команда. Доступные форматы:\n"
-        "• <сумма> <категория> — добавить запись (25 еда)\n"
-        "• <id> удалить — удалить запись (7 удалить)\n"
-        "• вся история — показать все записи"
-      )
+      await message.answer(HELP_TEXT)
       return
 
   except Exception as e:
@@ -127,101 +146,95 @@ async def handle_all_messages(message: Message):
     schedule_summary(uid)
 
 
-async def handle_add(message: Message, user_id: int, username: str, amount: float, category: str):
+async def handle_add(
+  message: Message, user_id: int, username: str, amount: float, category: str, comment: str | None
+):
   with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
     date = datetime.now().strftime('%Y-%m-%d')
-    cursor.execute(
-      'INSERT INTO expenses (user_id, username, amount, category, date) VALUES (?, ?, ?, ?, ?)',
-      (user_id, username, amount, category, date),
+    conn.execute(
+      'INSERT INTO expenses (user_id, username, amount, category, date, comment) '
+      'VALUES (?, ?, ?, ?, ?, ?)',
+      (user_id, username, amount, category, date, comment),
     )
     conn.commit()
-  log.info(f"Добавлено: {amount}€ | {category} | {username}")
-  await message.answer(f"Запись добавлена: {amount} € с пометкой {category}.")
+  what = describe(category, comment)
+  log.info(f"Добавлено: {amount}€ | {what} | {username}")
+  await message.answer(f"Запись добавлена: {amount} € | {what}.")
   await notify_other_user(
     user_id,
-    f"Пользователь {username} добавил запись: {amount:.2f} € с пометкой '{category}'.",
+    f"Пользователь {username} добавил запись: {amount:.2f} € | {what}.",
   )
 
 
 async def handle_delete(message: Message, user_id: int, username: str, record_id: int):
   with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
-    cursor.execute(
-      "SELECT username, amount, category, date FROM expenses WHERE id = ?",
+    row = conn.execute(
+      "SELECT username, amount, category, comment, date FROM expenses WHERE id = ?",
       (record_id,),
-    )
-    row = cursor.fetchone()
+    ).fetchone()
     if not row:
       await message.answer(f"Запись с id {record_id} не найдена.")
       return
-    rec_username, rec_amount, rec_category, rec_date = row
-    cursor.execute("DELETE FROM expenses WHERE id = ?", (record_id,))
+    rec_username, rec_amount, rec_category, rec_comment, rec_date = row
+    conn.execute("DELETE FROM expenses WHERE id = ?", (record_id,))
     conn.commit()
-  log.info(f"Удалено id={record_id}: {rec_amount}€ | {rec_category} | {rec_username}")
-  await message.answer(
-    f"Запись #{record_id} удалена: {rec_amount} € | {rec_category} | {rec_date}."
-  )
+  what = describe(rec_category, rec_comment)
+  log.info(f"Удалено id={record_id}: {rec_amount}€ | {what} | {rec_username}")
+  await message.answer(f"Запись #{record_id} удалена: {rec_amount} € | {what} | {rec_date}.")
   await notify_other_user(
     user_id,
     f"Пользователь {username} удалил запись #{record_id}: "
-    f"{rec_amount:.2f} € | {rec_category} | {rec_date}.",
+    f"{rec_amount:.2f} € | {what} | {rec_date}.",
   )
 
 
-async def history(user_id: int):
+async def handle_undo(message: Message, user_id: int, username: str):
   with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
-    today = datetime.now()
-    start_date = today.replace(day=1).strftime('%Y-%m-%d')
-    end_date = today.strftime('%Y-%m-%d')
-    cursor.execute(
-      'SELECT id, username, amount, category, date FROM expenses '
-      'WHERE date BETWEEN ? AND ? ORDER BY id',
-      (start_date, end_date),
-    )
-    rows = cursor.fetchall()
-
-  user_totals = {}
-  for row in rows:
-    user_totals[row[1]] = round(user_totals.get(row[1], 0) + row[2], 2)
-
-  history_text = "\n".join([f"{r[0]}. {r[1]} | {r[2]} € | {r[3]} | {r[4]}" for r in rows])
-  totals_text = "\n".join([f"{u}: {t} €" for u, t in user_totals.items()])
-
-  try:
-    await bot.send_message(
-      user_id,
-      f"История расходов:\n\n{history_text}\n\nСумма трат за месяц:\n{totals_text}",
-    )
-  except TelegramForbiddenError:
-    log.warning(f"Бот заблокирован пользователем {user_id}")
-
-
-async def full_history(user_id: int):
-  with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, username, amount, category, date FROM expenses ORDER BY id")
-    rows = cursor.fetchall()
-
-  if not rows:
-    await bot.send_message(user_id, "История расходов пуста.")
+    (last_id,) = conn.execute(
+      "SELECT MAX(id) FROM expenses WHERE user_id = ?", (user_id,)
+    ).fetchone()
+  if last_id is None:
+    await message.answer("У вас нет записей для отмены.")
     return
+  await handle_delete(message, user_id, username, last_id)
 
-  all_history = "\n".join([f"{r[0]}. {r[1]} | {r[2]} € | {r[3]} | {r[4]}" for r in rows])
+
+async def history(user_id: int, month: int, year: int):
+  start_date = f"{year:04d}-{month:02d}-01"
+  end_date = f"{year + month // 12:04d}-{month % 12 + 1:02d}-01"
+  with sqlite3.connect(DB_PATH) as conn:
+    rows = conn.execute(
+      'SELECT id, username, amount, category, comment, date FROM expenses '
+      'WHERE date >= ? AND date < ? ORDER BY id',
+      (start_date, end_date),
+    ).fetchall()
+
+  if rows:
+    user_totals = {}
+    for _, name, amount, *_ in rows:
+      user_totals[name] = round(user_totals.get(name, 0) + amount, 2)
+
+    history_text = "\n".join(
+      f"{rid}. {name} | {amount} € | {describe(category, comment)} | {date}"
+      for rid, name, amount, category, comment, date in rows
+    )
+    totals_text = "\n".join(f"{u}: {t} €" for u, t in user_totals.items())
+    text = (
+      f"История расходов за {month}/{year}:\n\n{history_text}\n\n"
+      f"Сумма трат за месяц:\n{totals_text}"
+    )
+  else:
+    text = f"За {month}/{year} записей нет."
+
   try:
-    await send_long(user_id, f"Вся история расходов:\n\n{all_history}")
+    await send_long(user_id, text)
   except TelegramForbiddenError:
     log.warning(f"Бот заблокирован пользователем {user_id}")
-  except Exception as e:
-    log.exception(f"Ошибка отправки полной истории пользователю {user_id}: {e}")
 
 
 async def balance(user_id: int):
   with sqlite3.connect(DB_PATH) as conn:
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, SUM(amount) FROM expenses GROUP BY user_id")
-    rows = cursor.fetchall()
+    rows = conn.execute("SELECT user_id, SUM(amount) FROM expenses GROUP BY user_id").fetchall()
 
   user_expenses = {row[0]: row[1] for row in rows}
 
