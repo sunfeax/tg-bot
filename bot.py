@@ -42,9 +42,13 @@ DEL_PATTERN = re.compile(r'^(\d+)\s+удалить$', re.IGNORECASE)
 UNDO_PATTERN = re.compile(r'^отмена$', re.IGNORECASE)
 MONTH_PATTERN = re.compile(r'^(\d{1,2})/(\d{4})$')
 
+TRANSFER_WORDS = {"одолжил", "одолжила", "вернул", "вернула"}
+
 HELP_TEXT = (
   "Не распознана команда. Доступные форматы:\n"
   "• <сумма> <категория> [комментарий] — добавить запись (25 еда пятёрочка)\n"
+  "• <сумма> одолжил(а) [комментарий] — вы дали деньги в долг (50 одолжила)\n"
+  "• <сумма> вернул(а) [комментарий] — вы вернули долг (50 вернул)\n"
   "• <id> удалить — удалить запись (7 удалить)\n"
   "• отмена — удалить свою последнюю запись\n"
   "• <месяц>/<год> — история за месяц (2/2026)"
@@ -64,11 +68,14 @@ def init_db():
         amount REAL NOT NULL,
         category TEXT NOT NULL,
         date TEXT NOT NULL,
-        comment TEXT)'''
+        comment TEXT,
+        kind TEXT NOT NULL DEFAULT 'expense')'''
     )
     columns = {row[1] for row in conn.execute("PRAGMA table_info(expenses)")}
     if "comment" not in columns:
       conn.execute("ALTER TABLE expenses ADD COLUMN comment TEXT")
+    if "kind" not in columns:
+      conn.execute("ALTER TABLE expenses ADD COLUMN kind TEXT NOT NULL DEFAULT 'expense'")
     conn.commit()
 
 
@@ -157,7 +164,10 @@ async def handle_all_messages(message: Message):
       amount = float(m.group(1).replace(",", "."))
       category = m.group(2)
       comment = m.group(3).strip() if m.group(3) else None
-      await handle_add(message, user_id, username, amount, category, comment)
+      kind = "expense"
+      if category.lower() in TRANSFER_WORDS:
+        category, kind = category.lower(), "transfer"
+      await handle_add(message, user_id, username, amount, category, comment, kind)
 
     else:
       await message.answer(HELP_TEXT)
@@ -173,14 +183,15 @@ async def handle_all_messages(message: Message):
 
 
 async def handle_add(
-  message: Message, user_id: int, username: str, amount: float, category: str, comment: str | None
+  message: Message, user_id: int, username: str, amount: float, category: str,
+  comment: str | None, kind: str,
 ):
   with sqlite3.connect(DB_PATH) as conn:
     date = message.date.astimezone().strftime('%Y-%m-%d')
     conn.execute(
-      'INSERT INTO expenses (user_id, username, amount, category, date, comment) '
-      'VALUES (?, ?, ?, ?, ?, ?)',
-      (user_id, username, amount, category, date, comment),
+      'INSERT INTO expenses (user_id, username, amount, category, date, comment, kind) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      (user_id, username, amount, category, date, comment, kind),
     )
     conn.commit()
   what = describe(category, comment)
@@ -230,19 +241,20 @@ async def history(user_id: int, month: int, year: int):
   end_date = f"{year + month // 12:04d}-{month % 12 + 1:02d}-01"
   with sqlite3.connect(DB_PATH) as conn:
     rows = conn.execute(
-      'SELECT id, username, amount, category, comment, date FROM expenses '
+      'SELECT id, username, amount, category, comment, date, kind FROM expenses '
       'WHERE date >= ? AND date < ? ORDER BY id',
       (start_date, end_date),
     ).fetchall()
 
   if rows:
     user_totals = {}
-    for _, name, amount, *_ in rows:
-      user_totals[name] = round(user_totals.get(name, 0) + amount, 2)
+    for _, name, amount, *_, kind in rows:
+      if kind == "expense":
+        user_totals[name] = round(user_totals.get(name, 0) + amount, 2)
 
     history_text = "\n".join(
       f"{rid}. {name} | {amount} € | {describe(category, comment)} | {date}"
-      for rid, name, amount, category, comment, date in rows
+      for rid, name, amount, category, comment, date, _ in rows
     )
     totals_text = "\n".join(f"{u}: {t} €" for u, t in user_totals.items())
     text = (
@@ -258,17 +270,31 @@ async def history(user_id: int, month: int, year: int):
     log.warning(f"Бот заблокирован пользователем {user_id}")
 
 
+def signed(value: float) -> str:
+  # + 0.0 turns -0.0 into 0.0 so a zero balance prints as +0.00
+  return f"{round(value, 2) + 0.0:+.2f} €"
+
+
 async def balance(user_id: int):
   with sqlite3.connect(DB_PATH) as conn:
-    rows = conn.execute("SELECT user_id, SUM(amount) FROM expenses GROUP BY user_id").fetchall()
+    rows = conn.execute(
+      "SELECT user_id, kind, SUM(amount) FROM expenses GROUP BY user_id, kind"
+    ).fetchall()
 
-  user_expenses = {row[0]: row[1] for row in rows}
+  spent = {uid: total for uid, kind, total in rows if kind == "expense"}
+  given = {uid: total for uid, kind, total in rows if kind == "transfer"}
+  users = set(spent) | set(given)
 
-  if len(user_expenses) == 2:
-    total = sum(user_expenses.values())
-    each_share = total / 2
-    bal = user_expenses.get(user_id, 0) - each_share
-    msg = f"Ваш баланс составляет: {'+' if bal >= 0 else ''}{bal:.2f} €"
+  if len(users) == 2 and user_id in users:
+    other = next(uid for uid in users if uid != user_id)
+    expense_part = (spent.get(user_id, 0) - spent.get(other, 0)) / 2
+    loan_part = given.get(user_id, 0) - given.get(other, 0)
+    msg = f"Ваш баланс: {signed(expense_part + loan_part)}"
+    if given:
+      msg += (
+        f"\n  по общим тратам: {signed(expense_part)}"
+        f"\n  по займам: {signed(loan_part)}"
+      )
   else:
     msg = "Баланс можно рассчитать только для двух пользователей."
 
