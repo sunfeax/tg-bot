@@ -51,6 +51,8 @@ The bot's SQLite database is stored in `./data`, which is mounted into the conta
 
 ## Usage
 
+On startup the bot sends each user a command reference and pins it in the chat. It is sent only once and edited in place when the command list changes.
+
 ### Adding Expenses
 Send a message in the format: `<amount> <category> [comment]`
 Examples: `25 food`, `25 food lunch with friends`
