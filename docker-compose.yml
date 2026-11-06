@@ -8,5 +8,5 @@ services:
       - ./data:/app/data:z
     logging:
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: '5m'
+        max-file: '2'

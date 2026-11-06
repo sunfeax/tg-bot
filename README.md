@@ -20,18 +20,21 @@ A Telegram bot for tracking shared expenses between users. The bot allows author
 ## Running with Docker
 
 1. Clone the repository:
+
    ```bash
    git clone <repository-url>
    cd tg-bot
    ```
 
 2. Create a `.env` file with your bot token and allowed user IDs:
+
    ```
    TOKEN="your-telegram-bot-token"
    ALLOWED_USER_IDS="111111111,222222222"
    ```
 
 3. Build and start the bot:
+
    ```bash
    docker compose up -d --build
    ```
@@ -62,27 +65,33 @@ npm run typecheck  # type checking only, Node runs TypeScript directly
 On startup the bot sends each user a command reference and pins it in the chat. It is sent only once and edited in place when the command list changes.
 
 ### Adding Expenses
+
 Send a message in the format: `<amount> <category> [comment]`
 Examples: `25 food`, `25 food lunch with friends`
 
 ### Loans
+
 Whoever hands over the money records it:
+
 - `<amount> одолжил` / `одолжила` — you lent money to the other user
 - `<amount> вернул` / `вернула` — you paid back a loan
 
 Loans count toward the balance in full (regular expenses count half) and are excluded from monthly spending totals.
 
 ### Viewing History
+
 Send `<month>/<year>` to view expense records for that month
 Example: `2/2026`
 
 ### Deleting Records
+
 Send a message in the format: `<ID> удалить`
 Example: `7 удалить`
 
 Send `отмена` to delete your most recent record
 
 ### Balance Calculation
+
 The bot automatically calculates the balance between users after each transaction
 
 ## Files
