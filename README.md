@@ -58,47 +58,38 @@ npm run typecheck  # type checking only, Node runs TypeScript directly
 
 - `TOKEN` — Telegram bot token
 - `ALLOWED_USER_IDS` — comma-separated Telegram user IDs allowed to use the bot
-- `TZ` — timezone for expense dates, logs and backups (default `Europe/Madrid`)
+- `TZ` — timezone for expense dates and backups (default `Europe/Madrid`)
 
 ## Usage
 
-On startup the bot sends each user a command reference and pins it in the chat. It is sent only once and edited in place when the command list changes.
+Send an amount with an optional comment, e.g. `25` or `12,5 coffee`. The bot replies with category buttons:
 
-### Adding Expenses
+- pick a category to save an expense (it counts half toward the balance);
+- **🤝 Одолжил** — you lent money to the other user, **💸 Вернул** — you paid back a loan (loans count in full and are excluded from monthly spending totals);
+- unanswered drafts expire after 10 minutes.
 
-Send a message in the format: `<amount> <category> [comment]`
-Examples: `25 food`, `25 food lunch with friends`
+Every saved record has a 🗑 button to delete it. The other user gets a notification for each new or deleted record, and the author receives the current month history and balance after every change.
 
-### Loans
+On startup the bot pins a help message in each user's chat and edits it in place when the text changes.
 
-Whoever hands over the money records it:
+Bottom keyboard: history and per-category statistics for the current month (both with ◀️ ▶️ month navigation), balance, help, undo your last record.
 
-- `<amount> одолжил` / `одолжила` — you lent money to the other user
-- `<amount> вернул` / `вернула` — you paid back a loan
+Commands:
 
-Loans count toward the balance in full (regular expenses count half) and are excluded from monthly spending totals.
+- `<month>/<year>` — history for a month, e.g. `2/2026`
+- `/del` — delete a record by id (the bot asks for the id, or pass it directly: `/del 7`)
+- `/undo` — delete your last record
+- `/addcat` — add a category (asks for the name), `/delcat` — delete one (existing records keep their category)
+- `/history`, `/stats`, `/balance`, `/help`
 
-### Viewing History
-
-Send `<month>/<year>` to view expense records for that month
-Example: `2/2026`
-
-### Deleting Records
-
-Send a message in the format: `<ID> удалить`
-Example: `7 удалить`
-
-Send `отмена` to delete your most recent record
-
-### Balance Calculation
-
-The bot automatically calculates the balance between users after each transaction
+The database is backed up hourly to `data/backups/` (one file per day, last 3 kept).
 
 ## Files
 
-- `src/main.ts` — bot entry point
-- `src/config.ts` — environment configuration
-- `src/db.ts` — SQLite connection and schema
+- `src/main.ts` — entry point: middleware, handler wiring, startup
+- `src/handlers/` — expense input, records, reports, categories
+- `src/db/` — schema, queries, backups
+- `src/constants.ts` — all texts, buttons, callback patterns and settings
 - `Dockerfile`, `docker-compose.yml` — container setup
 - `data/` — persisted SQLite database (created automatically)
 
