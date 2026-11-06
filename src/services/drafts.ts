@@ -1,6 +1,6 @@
 import type { Api } from 'grammy';
-import { DRAFT_TTL_MS, MESSAGES } from './constants.ts';
-import type { ParsedExpense } from './parse-expense.ts';
+import { DRAFT_TTL_MS, MESSAGES } from '../config/constants.ts';
+import type { ParsedExpense } from '../utils/parse-expense.ts';
 
 export type Draft = ParsedExpense & { userId: number; username: string };
 

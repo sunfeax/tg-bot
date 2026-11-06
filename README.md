@@ -86,10 +86,13 @@ The database is backed up hourly to `data/backups/` (one file per day, last 3 ke
 
 ## Files
 
-- `src/main.ts` — entry point: middleware, handler wiring, startup
-- `src/handlers/` — expense input, records, reports, categories
+- `src/main.ts` — entry point: access check, handler wiring, startup
+- `src/config/` — environment config and all texts, buttons, callback patterns and settings
 - `src/db/` — schema, queries, backups
-- `src/constants.ts` — all texts, buttons, callback patterns and settings
+- `src/handlers/` — expense input, records, reports, categories
+- `src/services/` — drafts, notifications, report texts, pinned help
+- `src/ui/` — keyboards and reply prompts
+- `src/utils/` — formatting and expense parsing
 - `Dockerfile`, `docker-compose.yml` — container setup
 - `data/` — persisted SQLite database (created automatically)
 

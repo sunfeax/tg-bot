@@ -1,4 +1,4 @@
-import { KIND } from '../constants.ts';
+import { KIND } from '../config/constants.ts';
 import { db } from './init.ts';
 
 export type Kind = (typeof KIND)[keyof typeof KIND];

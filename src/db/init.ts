@@ -1,8 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { config } from '../config.ts';
-import { DEFAULT_CATEGORIES } from '../constants.ts';
+import { config } from '../config/config.ts';
+import { DEFAULT_CATEGORIES } from '../config/constants.ts';
 
 mkdirSync(config.dataDir, { recursive: true });
 

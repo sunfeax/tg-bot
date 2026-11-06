@@ -1,9 +1,13 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { backup } from 'node:sqlite';
-import { config } from '../config.ts';
-import { BACKUP_FILE_PATTERN, BACKUP_INTERVAL_MS, BACKUP_KEEP } from '../constants.ts';
-import { localDate } from '../format.ts';
+import { config } from '../config/config.ts';
+import {
+  BACKUP_FILE_PATTERN,
+  BACKUP_INTERVAL_MS,
+  BACKUP_KEEP,
+} from '../config/constants.ts';
+import { localDate } from '../utils/format.ts';
 import { db } from './init.ts';
 
 const backupDir = path.join(config.dataDir, 'backups');

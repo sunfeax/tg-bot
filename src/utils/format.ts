@@ -1,6 +1,6 @@
 import type { User } from 'grammy/types';
-import { MAX_MESSAGE_LENGTH } from './constants.ts';
-import type { Expense } from './db/expenses.ts';
+import { MAX_MESSAGE_LENGTH } from '../config/constants.ts';
+import type { Expense } from '../db/expenses.ts';
 
 export function localDate(date = new Date()) {
   return date.toLocaleDateString('sv-SE');

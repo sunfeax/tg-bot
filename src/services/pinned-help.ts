@@ -1,7 +1,7 @@
 import type { Api } from 'grammy';
-import { MESSAGES } from './constants.ts';
-import { getPinnedHelp, savePinnedHelp } from './db/pinned-help.ts';
-import { mainKeyboard } from './keyboards.ts';
+import { MESSAGES } from '../config/constants.ts';
+import { getPinnedHelp, savePinnedHelp } from '../db/pinned-help.ts';
+import { mainKeyboard } from '../ui/keyboards.ts';
 
 export async function ensureHelpPinned(api: Api, userId: number) {
   const saved = getPinnedHelp(userId);

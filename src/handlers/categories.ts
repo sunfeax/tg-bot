@@ -1,13 +1,18 @@
 import { Composer, type Context } from 'grammy';
-import { CALLBACK, CATEGORY_NAME_MAX_LENGTH, MESSAGES, PROMPTS } from '../constants.ts';
+import {
+  CALLBACK,
+  CATEGORY_NAME_MAX_LENGTH,
+  MESSAGES,
+  PROMPTS,
+} from '../config/constants.ts';
 import {
   addCategory,
   deleteCategory,
   getCategories,
   getCategoryById,
 } from '../db/categories.ts';
-import { buildDeleteCategoryKeyboard } from '../keyboards.ts';
-import { forceReply, isReplyTo } from '../prompts.ts';
+import { buildDeleteCategoryKeyboard } from '../ui/keyboards.ts';
+import { forceReply, isReplyTo } from '../ui/prompts.ts';
 
 export const categoryHandlers = new Composer();
 

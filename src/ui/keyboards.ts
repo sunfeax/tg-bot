@@ -1,6 +1,6 @@
 import { InlineKeyboard, Keyboard } from 'grammy';
-import { BUTTONS, CALLBACK } from './constants.ts';
-import { getCategories } from './db/categories.ts';
+import { BUTTONS, CALLBACK } from '../config/constants.ts';
+import { getCategories } from '../db/categories.ts';
 
 function categoryButtons(prefix: string) {
   const keyboard = new InlineKeyboard();

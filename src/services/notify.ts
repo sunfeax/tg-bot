@@ -1,7 +1,7 @@
 import type { Api, InlineKeyboard } from 'grammy';
-import { config } from './config.ts';
-import { SUMMARY_DELAY_MS } from './constants.ts';
-import { splitMessage } from './format.ts';
+import { config } from '../config/config.ts';
+import { SUMMARY_DELAY_MS } from '../config/constants.ts';
+import { splitMessage } from '../utils/format.ts';
 import { balanceText, historyText, monthKeyboard } from './report-texts.ts';
 
 export async function sendLong(

@@ -1,7 +1,7 @@
 import { InlineKeyboard } from 'grammy';
-import { BUTTONS, KIND, MESSAGES, STATS_BAR_LENGTH } from './constants.ts';
-import { getCategoryTotals, getExpensesByPeriod, getTotals } from './db/expenses.ts';
-import { money, monthRange, recordLine, shiftMonth, signed } from './format.ts';
+import { BUTTONS, KIND, MESSAGES, STATS_BAR_LENGTH } from '../config/constants.ts';
+import { getCategoryTotals, getExpensesByPeriod, getTotals } from '../db/expenses.ts';
+import { money, monthRange, recordLine, shiftMonth, signed } from '../utils/format.ts';
 
 export function historyText(month: number, year: number) {
   const { from, to } = monthRange(month, year);

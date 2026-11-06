@@ -1,13 +1,13 @@
 import { Bot, type Context } from 'grammy';
-import { config } from './config.ts';
-import { BUTTONS, COMMANDS, MESSAGES } from './constants.ts';
+import { config } from './config/config.ts';
+import { BUTTONS, COMMANDS, MESSAGES } from './config/constants.ts';
 import { startBackups } from './db/backup.ts';
 import { categoryHandlers } from './handlers/categories.ts';
 import { expenseHandlers } from './handlers/expense.ts';
 import { recordHandlers } from './handlers/records.ts';
 import { reportHandlers } from './handlers/reports.ts';
-import { mainKeyboard } from './keyboards.ts';
-import { ensureHelpPinned } from './pinned-help.ts';
+import { mainKeyboard } from './ui/keyboards.ts';
+import { ensureHelpPinned } from './services/pinned-help.ts';
 
 const bot = new Bot(config.token);
 

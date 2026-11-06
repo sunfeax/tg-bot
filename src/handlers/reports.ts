@@ -1,8 +1,13 @@
 import { Composer, type Context } from 'grammy';
-import { BUTTONS, CALLBACK, MESSAGES, MONTH_PATTERN } from '../constants.ts';
-import { splitMessage } from '../format.ts';
-import { sendLong } from '../notify.ts';
-import { balanceText, historyText, monthKeyboard, statsText } from '../report-texts.ts';
+import { BUTTONS, CALLBACK, MESSAGES, MONTH_PATTERN } from '../config/constants.ts';
+import { splitMessage } from '../utils/format.ts';
+import { sendLong } from '../services/notify.ts';
+import {
+  balanceText,
+  historyText,
+  monthKeyboard,
+  statsText,
+} from '../services/report-texts.ts';
 
 export const reportHandlers = new Composer();
 

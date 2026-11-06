@@ -1,9 +1,9 @@
 import { Composer, type Context } from 'grammy';
-import { BUTTONS, CALLBACK, MESSAGES, PROMPTS } from '../constants.ts';
+import { BUTTONS, CALLBACK, MESSAGES, PROMPTS } from '../config/constants.ts';
 import { deleteExpense, getExpense, getLastExpenseId } from '../db/expenses.ts';
-import { expenseBody, fullName } from '../format.ts';
-import { notifyOthers, scheduleSummary } from '../notify.ts';
-import { forceReply, isReplyTo } from '../prompts.ts';
+import { expenseBody, fullName } from '../utils/format.ts';
+import { notifyOthers, scheduleSummary } from '../services/notify.ts';
+import { forceReply, isReplyTo } from '../ui/prompts.ts';
 
 export const recordHandlers = new Composer();
 

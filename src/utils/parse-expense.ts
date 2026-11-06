@@ -1,4 +1,4 @@
-import { AMOUNT_PATTERN } from './constants.ts';
+import { AMOUNT_PATTERN } from '../config/constants.ts';
 
 export interface ParsedExpense {
   amount: number;

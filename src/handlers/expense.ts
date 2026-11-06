@@ -1,12 +1,12 @@
 import { Composer, type Context } from 'grammy';
-import { CALLBACK, KIND, LOAN, MESSAGES } from '../constants.ts';
+import { CALLBACK, KIND, LOAN, MESSAGES } from '../config/constants.ts';
 import { getCategoryById } from '../db/categories.ts';
 import { insertExpense, type NewExpense } from '../db/expenses.ts';
-import { takeDraft, saveDraft, type Draft } from '../drafts.ts';
-import { expenseBody, fullName, loanBody, localDate, money } from '../format.ts';
-import { buildCategoryKeyboard, buildDeleteRecordKeyboard } from '../keyboards.ts';
-import { notifyOthers, scheduleSummary } from '../notify.ts';
-import { parseExpense } from '../parse-expense.ts';
+import { takeDraft, saveDraft, type Draft } from '../services/drafts.ts';
+import { expenseBody, fullName, loanBody, localDate, money } from '../utils/format.ts';
+import { buildCategoryKeyboard, buildDeleteRecordKeyboard } from '../ui/keyboards.ts';
+import { notifyOthers, scheduleSummary } from '../services/notify.ts';
+import { parseExpense } from '../utils/parse-expense.ts';
 
 export const expenseHandlers = new Composer();
 
