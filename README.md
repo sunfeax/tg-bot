@@ -50,7 +50,7 @@ The bot's SQLite database is stored in `./data`, which is mounted into the conta
 
 ```bash
 npm install
-npm run dev        # runs src/bot.ts with --watch and loads .env
+npm run dev        # runs src/main.ts with --watch and loads .env
 npm run typecheck  # type checking only, Node runs TypeScript directly
 ```
 
@@ -96,7 +96,7 @@ The bot automatically calculates the balance between users after each transactio
 
 ## Files
 
-- `src/bot.ts` — bot entry point
+- `src/main.ts` — bot entry point
 - `src/config.ts` — environment configuration
 - `src/db.ts` — SQLite connection and schema
 - `Dockerfile`, `docker-compose.yml` — container setup

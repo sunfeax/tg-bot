@@ -12,4 +12,4 @@ ENV DATA_DIR=/app/data
 ENV TZ=Europe/Madrid
 VOLUME ["/app/data"]
 
-CMD ["node", "src/bot.ts"]
+CMD ["node", "src/main.ts"]

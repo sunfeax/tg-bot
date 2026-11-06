@@ -1,9 +1,9 @@
+import { AMOUNT_PATTERN } from './constants.ts';
+
 export interface ParsedExpense {
   amount: number;
   comment: string | null;
 }
-
-const AMOUNT_PATTERN = /^\d+([.,]\d{1,2})?$/;
 
 export function parseExpense(text: string): ParsedExpense | null {
   const trimmed = text.trim();

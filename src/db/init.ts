@@ -1,7 +1,8 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { config } from './config.ts';
+import { config } from '../config.ts';
+import { DEFAULT_CATEGORIES } from '../constants.ts';
 
 mkdirSync(config.dataDir, { recursive: true });
 
@@ -28,8 +29,6 @@ db.exec(`
     name TEXT NOT NULL UNIQUE
   );
 `);
-
-const DEFAULT_CATEGORIES = ['Еда', 'Транспорт', 'Дом', 'Развлечения', 'Другое'];
 
 const { count } = db.prepare('SELECT COUNT(*) AS count FROM categories').get() as {
   count: number;
