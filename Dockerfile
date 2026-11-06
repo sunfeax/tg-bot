@@ -1,14 +1,15 @@
-FROM python:3.12-slim
+FROM node:24-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-COPY bot.py ./
+COPY src ./src
 
+ENV NODE_ENV=production
 ENV DATA_DIR=/app/data
 ENV TZ=Europe/Madrid
 VOLUME ["/app/data"]
 
-CMD ["python", "bot.py"]
+CMD ["node", "src/bot.ts"]

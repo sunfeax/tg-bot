@@ -13,7 +13,8 @@ A Telegram bot for tracking shared expenses between users. The bot allows author
 
 ## Requirements
 
-- Docker and Docker Compose
+- Docker and Docker Compose (for deployment)
+- Node.js 24+ (for local development)
 - Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 
 ## Running with Docker
@@ -42,12 +43,19 @@ A Telegram bot for tracking shared expenses between users. The bot allows author
 
 The bot's SQLite database is stored in `./data`, which is mounted into the container so data persists across restarts and rebuilds.
 
+## Local Development
+
+```bash
+npm install
+npm run dev        # runs src/bot.ts with --watch and loads .env
+npm run typecheck  # type checking only, Node runs TypeScript directly
+```
+
 ## Configuration
 
 - `TOKEN` — Telegram bot token
 - `ALLOWED_USER_IDS` — comma-separated Telegram user IDs allowed to use the bot
 - `TZ` — timezone for expense dates, logs and backups (default `Europe/Madrid`)
-- `LOG_LEVEL` — logging level (default `INFO`); set `WARNING` to hide routine logs
 
 ## Usage
 
@@ -79,7 +87,9 @@ The bot automatically calculates the balance between users after each transactio
 
 ## Files
 
-- `bot.py` — main bot application
+- `src/bot.ts` — bot entry point
+- `src/config.ts` — environment configuration
+- `src/db.ts` — SQLite connection and schema
 - `Dockerfile`, `docker-compose.yml` — container setup
 - `data/` — persisted SQLite database (created automatically)
 
