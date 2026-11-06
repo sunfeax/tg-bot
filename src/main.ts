@@ -1,28 +1,47 @@
-import { Bot } from 'grammy';
+import { Bot, type Context } from 'grammy';
 import { config } from './config.ts';
-import { MESSAGES } from './constants.ts';
-import { buildCategoryKeyboard } from './keyboards.ts';
-import { parseExpense } from './parse-expense.ts';
+import { BUTTONS, COMMANDS, MESSAGES } from './constants.ts';
+import { startBackups } from './db/backup.ts';
+import { categoryHandlers } from './handlers/categories.ts';
+import { expenseHandlers } from './handlers/expense.ts';
+import { recordHandlers } from './handlers/records.ts';
+import { reportHandlers } from './handlers/reports.ts';
+import { mainKeyboard } from './keyboards.ts';
+import { ensureHelpPinned } from './pinned-help.ts';
 
 const bot = new Bot(config.token);
 
 bot.use(async (ctx, next) => {
-  if (ctx.from && config.allowedUsers.has(ctx.from.id)) await next();
+  if (ctx.from && config.allowedUsers.has(ctx.from.id)) return next();
+  if (ctx.message) await ctx.reply(MESSAGES.noAccess);
 });
 
-bot.on('message:text', ctx => {
-  const expense = parseExpense(ctx.message.text);
-  if (!expense) return ctx.reply(MESSAGES.invalidRequest);
-  return ctx.reply(MESSAGES.chooseCategory, {
-    reply_markup: buildCategoryKeyboard(),
-  });
-});
+const help = (ctx: Context) => ctx.reply(MESSAGES.help, { reply_markup: mainKeyboard });
+bot.command(['start', 'help'], help);
+bot.hears(BUTTONS.help, help);
+
+bot.use(reportHandlers, recordHandlers, categoryHandlers, expenseHandlers);
 
 bot.on('message', ctx => ctx.reply(MESSAGES.invalidRequest));
 
-bot.catch(err => console.error('Update failed:', err.error));
+bot.catch(async err => {
+  console.error('Update failed:', err.error);
+  await err.ctx.reply(MESSAGES.internalError).catch(() => {});
+});
 
-process.once('SIGINT', () => bot.stop());
-process.once('SIGTERM', () => bot.stop());
+await bot.api.setMyCommands(COMMANDS);
+for (const userId of config.allowedUsers) {
+  await ensureHelpPinned(bot.api, userId).catch(err =>
+    console.warn(`Failed to pin help for ${userId}:`, err.message),
+  );
+}
+const backupTimer = startBackups();
+
+const stop = () => {
+  clearInterval(backupTimer);
+  return bot.stop();
+};
+process.once('SIGINT', stop);
+process.once('SIGTERM', stop);
 
 await bot.start({ onStart: () => console.log('Bot started') });

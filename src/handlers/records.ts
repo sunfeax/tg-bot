@@ -1,0 +1,58 @@
+import { Composer, type Context } from 'grammy';
+import { BUTTONS, CALLBACK, MESSAGES, PROMPTS } from '../constants.ts';
+import { deleteExpense, getExpense, getLastExpenseId } from '../db/expenses.ts';
+import { expenseBody, fullName } from '../format.ts';
+import { notifyOthers, scheduleSummary } from '../notify.ts';
+import { forceReply, isReplyTo } from '../prompts.ts';
+
+export const recordHandlers = new Composer();
+
+recordHandlers.command('del', ctx => {
+  const arg = ctx.match.trim();
+  if (!arg) {
+    return ctx.reply(PROMPTS.deleteRecord, forceReply(PROMPTS.deleteRecordPlaceholder));
+  }
+  return deleteByInput(ctx, arg);
+});
+
+recordHandlers
+  .on('message:text')
+  .filter(isReplyTo(PROMPTS.deleteRecord), ctx => deleteByInput(ctx, ctx.message.text));
+
+recordHandlers.command('undo', undo);
+recordHandlers.hears(BUTTONS.undo, undo);
+
+recordHandlers.callbackQuery(CALLBACK.deleteRecord, async ctx => {
+  const text = await removeExpense(ctx, Number(ctx.match[1]));
+  await ctx.editMessageText(text);
+  await ctx.answerCallbackQuery();
+});
+
+async function deleteByInput(ctx: Context, input: string) {
+  const id = Number(input.trim());
+  if (!Number.isInteger(id) || id <= 0) return ctx.reply(MESSAGES.invalidId);
+  await ctx.reply(await removeExpense(ctx, id));
+}
+
+async function undo(ctx: Context) {
+  const id = ctx.from && getLastExpenseId(ctx.from.id);
+  if (!id) return ctx.reply(MESSAGES.nothingToUndo);
+  await ctx.reply(await removeExpense(ctx, id));
+}
+
+async function removeExpense(ctx: Context, id: number) {
+  const expense = getExpense(id);
+  if (!expense || !ctx.from) return MESSAGES.recordNotFound(id);
+
+  deleteExpense(id);
+  const body = `${expense.username} | ${expenseBody(expense)}`;
+  console.info(`Deleted #${id}: ${body}`);
+
+  await notifyOthers(
+    ctx.api,
+    ctx.from.id,
+    MESSAGES.recordDeletedNotify(id, fullName(ctx.from), body),
+  );
+  scheduleSummary(ctx.api, ctx.from.id);
+  return MESSAGES.recordDeleted(id, body);
+}
