@@ -26,6 +26,7 @@ export const BACKUP_INTERVAL_MS = 60 * 60 * 1000;
 export const BACKUP_KEEP = 3;
 export const STATS_BAR_LENGTH = 10;
 export const BACKUP_FILE_PATTERN = /^expenses-.*\.db$/;
+export const BACKUP_SENT_MARKER = '.last-sent';
 
 export const KIND = {
   expense: 'expense',
@@ -71,6 +72,7 @@ export const COMMANDS = [
   { command: 'del', description: 'Удалить запись по id' },
   { command: 'addcat', description: 'Добавить категорию' },
   { command: 'delcat', description: 'Удалить категорию' },
+  { command: 'backup', description: 'Прислать копию базы' },
   { command: 'help', description: 'Справка' },
 ];
 
@@ -109,6 +111,9 @@ export const MESSAGES = {
     '',
     '🏷 Категории',
     '/addcat — добавить новую, /delcat — удалить',
+    '',
+    '💾 Копия базы',
+    '/backup — прислать файл базы сейчас. Раз в месяц он приходит сам.',
   ].join('\n'),
   invalidRequest:
     '🤔 Неверный запрос.\nЧтобы добавить новую запись, отправь сумму и комментарий (опционально) через пробел:\n25\n12,5 кофе',
@@ -159,4 +164,5 @@ export const MESSAGES = {
   categoryDeleted: (name: string) => `🗑 Категория «${name}» удалена.`,
   lastCategory: '⚠️ Нельзя удалить последнюю категорию.',
   menuClosed: '✖️ Закрыто.',
+  backupCaption: (date: string) => `💾 Копия базы на ${date}`,
 };
