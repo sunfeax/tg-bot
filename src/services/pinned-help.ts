@@ -1,7 +1,6 @@
 import type { Api } from 'grammy';
 import { MESSAGES } from '../config/constants.ts';
 import { getPinnedHelp, savePinnedHelp } from '../db/pinned-help.ts';
-import { mainKeyboard } from '../ui/keyboards.ts';
 
 export async function ensureHelpPinned(api: Api, userId: number) {
   const saved = getPinnedHelp(userId);
@@ -16,7 +15,7 @@ export async function ensureHelpPinned(api: Api, userId: number) {
   }
 
   const sent = await api.sendMessage(userId, MESSAGES.help, {
-    reply_markup: mainKeyboard,
+    reply_markup: { remove_keyboard: true },
     disable_notification: true,
   });
   await api.pinChatMessage(userId, sent.message_id, { disable_notification: true });

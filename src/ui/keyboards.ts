@@ -1,4 +1,4 @@
-import { InlineKeyboard, Keyboard } from 'grammy';
+import { InlineKeyboard } from 'grammy';
 import { BUTTONS, CALLBACK } from '../config/constants.ts';
 import { getCategories } from '../db/categories.ts';
 
@@ -26,14 +26,3 @@ export function buildDeleteCategoryKeyboard() {
 export function buildDeleteRecordKeyboard(id: number) {
   return new InlineKeyboard().text(BUTTONS.delete, `del:${id}`);
 }
-
-export const mainKeyboard = new Keyboard()
-  .text(BUTTONS.history)
-  .text(BUTTONS.stats)
-  .row()
-  .text(BUTTONS.balance)
-  .text(BUTTONS.help)
-  .row()
-  .text(BUTTONS.undo)
-  .resized()
-  .persistent();

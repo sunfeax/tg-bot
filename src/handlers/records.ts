@@ -1,6 +1,6 @@
 import { Composer, type Context } from 'grammy';
-import { BUTTONS, CALLBACK, MESSAGES, PROMPTS } from '../config/constants.ts';
-import { deleteExpense, getExpense, getLastExpenseId } from '../db/expenses.ts';
+import { CALLBACK, MESSAGES, PROMPTS } from '../config/constants.ts';
+import { deleteExpense, getExpense } from '../db/expenses.ts';
 import { expenseBody, fullName } from '../utils/format.ts';
 import { notifyOthers, scheduleSummary } from '../services/notify.ts';
 import { forceReply, isReplyTo } from '../ui/prompts.ts';
@@ -19,9 +19,6 @@ recordHandlers
   .on('message:text')
   .filter(isReplyTo(PROMPTS.deleteRecord), ctx => deleteByInput(ctx, ctx.message.text));
 
-recordHandlers.command('undo', undo);
-recordHandlers.hears(BUTTONS.undo, undo);
-
 recordHandlers.callbackQuery(CALLBACK.deleteRecord, async ctx => {
   const text = await removeExpense(ctx, Number(ctx.match[1]));
   await ctx.editMessageText(text);
@@ -31,12 +28,6 @@ recordHandlers.callbackQuery(CALLBACK.deleteRecord, async ctx => {
 async function deleteByInput(ctx: Context, input: string) {
   const id = Number(input.trim());
   if (!Number.isInteger(id) || id <= 0) return ctx.reply(MESSAGES.invalidId);
-  await ctx.reply(await removeExpense(ctx, id));
-}
-
-async function undo(ctx: Context) {
-  const id = ctx.from && getLastExpenseId(ctx.from.id);
-  if (!id) return ctx.reply(MESSAGES.nothingToUndo);
   await ctx.reply(await removeExpense(ctx, id));
 }
 

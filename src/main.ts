@@ -1,12 +1,10 @@
 import { Bot, type Context } from 'grammy';
 import { config } from './config/config.ts';
-import { BUTTONS, COMMANDS, MESSAGES } from './config/constants.ts';
-import { backupHandlers } from './handlers/backup.ts';
+import { COMMANDS, MESSAGES } from './config/constants.ts';
 import { categoryHandlers } from './handlers/categories.ts';
 import { expenseHandlers } from './handlers/expense.ts';
 import { recordHandlers } from './handlers/records.ts';
 import { reportHandlers } from './handlers/reports.ts';
-import { mainKeyboard } from './ui/keyboards.ts';
 import { startBackups } from './services/backups.ts';
 import { ensureHelpPinned } from './services/pinned-help.ts';
 
@@ -17,17 +15,11 @@ bot.use(async (ctx, next) => {
   if (ctx.message) await ctx.reply(MESSAGES.noAccess);
 });
 
-const help = (ctx: Context) => ctx.reply(MESSAGES.help, { reply_markup: mainKeyboard });
+const help = (ctx: Context) =>
+  ctx.reply(MESSAGES.help, { reply_markup: { remove_keyboard: true } });
 bot.command(['start', 'help'], help);
-bot.hears(BUTTONS.help, help);
 
-bot.use(
-  reportHandlers,
-  recordHandlers,
-  categoryHandlers,
-  backupHandlers,
-  expenseHandlers,
-);
+bot.use(reportHandlers, recordHandlers, categoryHandlers, expenseHandlers);
 
 bot.on('message', ctx => ctx.reply(MESSAGES.invalidRequest));
 

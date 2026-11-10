@@ -2,22 +2,24 @@ import type { Api, InlineKeyboard } from 'grammy';
 import { config } from '../config/config.ts';
 import { SUMMARY_DELAY_MS } from '../config/constants.ts';
 import { splitMessage } from '../utils/format.ts';
-import { balanceText, historyText, monthKeyboard } from './report-texts.ts';
+import { balanceText } from './report-texts.ts';
 
 export async function sendLong(
   api: Api,
   chatId: number,
   text: string,
   keyboard?: InlineKeyboard,
+  monospace = false,
 ) {
   const chunks = splitMessage(text);
   for (const [index, chunk] of chunks.entries()) {
     const isLast = index === chunks.length - 1;
-    await api.sendMessage(
-      chatId,
-      chunk,
-      isLast && keyboard ? { reply_markup: keyboard } : {},
-    );
+    await api.sendMessage(chatId, chunk, {
+      ...(isLast && keyboard ? { reply_markup: keyboard } : {}),
+      ...(monospace
+        ? { entities: [{ type: 'pre' as const, offset: 0, length: chunk.length }] }
+        : {}),
+    });
   }
 }
 
@@ -41,18 +43,7 @@ export function scheduleSummary(api: Api, userId: number) {
   clearTimeout(summaryTimers.get(userId));
   const timer = setTimeout(() => {
     summaryTimers.delete(userId);
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
-    void safeSend(userId, async () => {
-      await sendLong(
-        api,
-        userId,
-        historyText(month, year),
-        monthKeyboard('hist', month, year),
-      );
-      await api.sendMessage(userId, balanceText(userId));
-    });
+    void safeSend(userId, () => api.sendMessage(userId, balanceText(userId)));
   }, SUMMARY_DELAY_MS);
   summaryTimers.set(userId, timer);
 }

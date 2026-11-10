@@ -8,7 +8,7 @@ import { localDate } from '../utils/format.ts';
 
 const markerPath = path.join(backupDir, BACKUP_SENT_MARKER);
 
-export async function sendBackup(api: Api, chatId: number) {
+async function sendBackup(api: Api, chatId: number) {
   const date = localDate();
   const snapshot = path.join(backupDir, `snapshot-${Date.now()}.db`);
   await createSnapshot(snapshot);

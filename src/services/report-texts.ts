@@ -1,7 +1,7 @@
 import { InlineKeyboard } from 'grammy';
 import { BUTTONS, KIND, MESSAGES, STATS_BAR_LENGTH } from '../config/constants.ts';
 import { getCategoryTotals, getExpensesByPeriod, getTotals } from '../db/expenses.ts';
-import { money, monthRange, recordLine, shiftMonth, signed } from '../utils/format.ts';
+import { historyTable, money, monthRange, shiftMonth, signed } from '../utils/format.ts';
 
 export function historyText(month: number, year: number) {
   const { from, to } = monthRange(month, year);
@@ -17,7 +17,7 @@ export function historyText(month: number, year: number) {
   return [
     MESSAGES.historyTitle(month, year),
     '',
-    ...expenses.map(recordLine),
+    historyTable(expenses),
     '',
     MESSAGES.historyTotals,
     ...[...totals].map(([username, total]) => `${username}: ${money(total)} €`),
@@ -25,12 +25,21 @@ export function historyText(month: number, year: number) {
 }
 
 export function monthKeyboard(prefix: 'hist' | 'stats', month: number, year: number) {
+  const now = new Date();
   const prev = shiftMonth(month, year, -1);
-  const next = shiftMonth(month, year, 1);
-  return new InlineKeyboard()
+  const keyboard = new InlineKeyboard()
     .text(BUTTONS.prevMonth, `${prefix}:${prev.year}-${prev.month}`)
-    .text(`${month}/${year}`, `${prefix}:${year}-${month}`)
-    .text(BUTTONS.nextMonth, `${prefix}:${next.year}-${next.month}`);
+    .text(`${month}/${year}`, `${prefix}:${year}-${month}`);
+
+  if (
+    year < now.getFullYear() ||
+    (year === now.getFullYear() && month < now.getMonth() + 1)
+  ) {
+    const next = shiftMonth(month, year, 1);
+    keyboard.text(BUTTONS.nextMonth, `${prefix}:${next.year}-${next.month}`);
+  }
+
+  return keyboard;
 }
 
 export function statsText(month: number, year: number) {

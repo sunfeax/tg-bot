@@ -68,21 +68,23 @@ Send an amount with an optional comment, e.g. `25` or `12,5 coffee`. The bot rep
 - **🤝 Одолжил** — you lent money to the other user, **💸 Вернул** — you paid back a loan (loans count in full and are excluded from monthly spending totals);
 - unanswered drafts expire after 10 minutes.
 
-Every saved record has a 🗑 button to delete it. The other user gets a notification for each new or deleted record, and the author receives the current month history and balance after every change.
+Every saved record has a 🗑 button to delete it. The other user gets a notification for each new or deleted record, and the author receives the balance after every change. Expense history is sent only when requested via `/history` or a month/year message.
 
 On startup the bot pins a help message in each user's chat and edits it in place when the text changes.
 
-Bottom keyboard: history and per-category statistics for the current month (both with ◀️ ▶️ month navigation), balance, help, undo your last record.
+The command menu provides monthly history and per-category statistics (both with ◀️ ▶️ month navigation), balance, record deletion, category management, and help. Command descriptions include emoji.
+
+History uses a monospace table with record IDs, dates, and amounts. Each row is followed by the author, category, and optional comment.
 
 Commands:
 
 - `<month>/<year>` — history for a month, e.g. `2/2026`
 - `/del` — delete a record by id (the bot asks for the id, or pass it directly: `/del 7`)
-- `/undo` — delete your last record
 - `/addcat` — add a category (asks for the name), `/delcat` — delete one (existing records keep their category)
 - `/history`, `/stats`, `/balance`, `/help`
 
 The database is backed up hourly to `data/backups/` (one file per day, last 3 kept).
+The database file is sent automatically once per month to the first configured allowed user. There is no manual backup command.
 
 ## Files
 

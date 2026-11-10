@@ -23,9 +23,6 @@ const insert = db.prepare(
 );
 const selectById = db.prepare(`SELECT ${COLUMNS} FROM expenses WHERE id = ?`);
 const deleteById = db.prepare('DELETE FROM expenses WHERE id = ?');
-const selectLastIdByUser = db.prepare(
-  'SELECT MAX(id) AS id FROM expenses WHERE user_id = ?',
-);
 const selectByPeriod = db.prepare(
   `SELECT ${COLUMNS} FROM expenses WHERE date >= ? AND date < ? ORDER BY id`,
 );
@@ -50,10 +47,6 @@ export function getExpense(id: number) {
 
 export function deleteExpense(id: number) {
   deleteById.run(id);
-}
-
-export function getLastExpenseId(userId: number) {
-  return (selectLastIdByUser.get(userId) as { id: number | null }).id;
 }
 
 export function getExpensesByPeriod(from: string, to: string) {

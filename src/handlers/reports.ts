@@ -1,5 +1,5 @@
 import { Composer, type Context } from 'grammy';
-import { BUTTONS, CALLBACK, MESSAGES, MONTH_PATTERN } from '../config/constants.ts';
+import { CALLBACK, MESSAGES, MONTH_PATTERN } from '../config/constants.ts';
 import { splitMessage } from '../utils/format.ts';
 import { sendLong } from '../services/notify.ts';
 import {
@@ -12,7 +12,6 @@ import {
 export const reportHandlers = new Composer();
 
 reportHandlers.command('history', currentMonthHistory);
-reportHandlers.hears(BUTTONS.history, currentMonthHistory);
 
 reportHandlers.hears(MONTH_PATTERN, ctx => {
   const month = Number(ctx.match[1]);
@@ -29,7 +28,10 @@ reportHandlers.callbackQuery(CALLBACK.history, async ctx => {
 
   if (splitMessage(text).length === 1) {
     await ctx
-      .editMessageText(text, { reply_markup: keyboard })
+      .editMessageText(text, {
+        reply_markup: keyboard,
+        entities: [{ type: 'pre', offset: 0, length: text.length }],
+      })
       .catch(err => console.warn('Failed to edit history:', err.message));
   } else {
     await sendHistory(ctx, month, year);
@@ -38,7 +40,6 @@ reportHandlers.callbackQuery(CALLBACK.history, async ctx => {
 });
 
 reportHandlers.command('stats', currentMonthStats);
-reportHandlers.hears(BUTTONS.stats, currentMonthStats);
 
 reportHandlers.callbackQuery(CALLBACK.stats, async ctx => {
   const year = Number(ctx.match[1]);
@@ -52,7 +53,6 @@ reportHandlers.callbackQuery(CALLBACK.stats, async ctx => {
 });
 
 reportHandlers.command('balance', balance);
-reportHandlers.hears(BUTTONS.balance, balance);
 
 function currentMonthHistory(ctx: Context) {
   const now = new Date();
@@ -75,6 +75,7 @@ function sendHistory(ctx: Context, month: number, year: number) {
     ctx.chatId,
     historyText(month, year),
     monthKeyboard('hist', month, year),
+    true,
   );
 }
 
