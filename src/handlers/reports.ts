@@ -28,10 +28,7 @@ reportHandlers.callbackQuery(CALLBACK.history, async ctx => {
 
   if (splitMessage(text).length === 1) {
     await ctx
-      .editMessageText(text, {
-        reply_markup: keyboard,
-        entities: [{ type: 'pre', offset: 0, length: text.length }],
-      })
+      .editMessageText(text, { reply_markup: keyboard })
       .catch(err => console.warn('Failed to edit history:', err.message));
   } else {
     await sendHistory(ctx, month, year);
@@ -75,7 +72,6 @@ function sendHistory(ctx: Context, month: number, year: number) {
     ctx.chatId,
     historyText(month, year),
     monthKeyboard('hist', month, year),
-    true,
   );
 }
 

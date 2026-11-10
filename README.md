@@ -74,7 +74,7 @@ On startup the bot pins a help message in each user's chat and edits it in place
 
 The command menu provides monthly history and per-category statistics (both with ◀️ ▶️ month navigation), balance, record deletion, category management, and help. Command descriptions include emoji.
 
-History uses a monospace table with record IDs, dates, and amounts. Each row is followed by the author, category, and optional comment.
+History lists each record with its ID, author, amount, category, optional comment, and date.
 
 Commands:
 

@@ -9,17 +9,15 @@ export async function sendLong(
   chatId: number,
   text: string,
   keyboard?: InlineKeyboard,
-  monospace = false,
 ) {
   const chunks = splitMessage(text);
   for (const [index, chunk] of chunks.entries()) {
     const isLast = index === chunks.length - 1;
-    await api.sendMessage(chatId, chunk, {
-      ...(isLast && keyboard ? { reply_markup: keyboard } : {}),
-      ...(monospace
-        ? { entities: [{ type: 'pre' as const, offset: 0, length: chunk.length }] }
-        : {}),
-    });
+    await api.sendMessage(
+      chatId,
+      chunk,
+      isLast && keyboard ? { reply_markup: keyboard } : {},
+    );
   }
 }
 

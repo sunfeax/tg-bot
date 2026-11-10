@@ -33,34 +33,8 @@ export function loanBody(expense: Pick<Expense, 'amount' | 'comment' | 'date'>) 
   return `${money(expense.amount)} €${expense.comment ? ` (${expense.comment})` : ''} | ${expense.date}`;
 }
 
-export function historyTable(expenses: Expense[]) {
-  const rows = expenses.map(expense => [
-    String(expense.id),
-    expense.date.slice(5).split('-').reverse().join('.'),
-    money(expense.amount),
-  ]);
-  const headers = ['ID', 'Дата', 'Сумма, €'];
-  const widths = headers.map((header, column) =>
-    Math.max(header.length, ...rows.map(row => row[column]!.length)),
-  );
-  const formatRow = (cells: string[]) =>
-    cells
-      .map((cell, column) =>
-        column === 1 ? cell.padEnd(widths[column]!) : cell.padStart(widths[column]!),
-      )
-      .join(' | ');
-
-  return [
-    formatRow(headers),
-    widths.map(width => '-'.repeat(width)).join('-+-'),
-    ...expenses.flatMap((expense, index) => [
-      formatRow(rows[index]!),
-      `${expense.username} | ${describe(expense.category, expense.comment)}`,
-      '',
-    ]),
-  ]
-    .join('\n')
-    .trimEnd();
+export function recordLine(expense: Expense) {
+  return `${expense.id}. ${expense.username} | ${expenseBody(expense)}`;
 }
 
 export function monthRange(month: number, year: number) {
